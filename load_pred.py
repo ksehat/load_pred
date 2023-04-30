@@ -101,7 +101,7 @@ def mean_load_pred(input_data_list):
                 "fkFlightInformation": PkFlightInformation,
                 "load": y_pred[0]
             }
-            api_result = requests.post(url='http://192.168.115.10:8083/api/FlightInformation/CreateFlightLoadEstimate',
+            api_result = requests.post(url='http://192.168.115.10:8081/api/FlightInformation/CreateFlightLoadEstimate',
                                        json=result_data,
                                        headers={'Authorization': f'Bearer {token}',
                                                 'Content-type': 'application/json',
@@ -109,7 +109,7 @@ def mean_load_pred(input_data_list):
             if not json.loads(api_result.text)['success']:
                 print(f'y_pred:{y_pred} did not recorded in DB.')
         except:
-            requests.post(url='http://192.168.115.10:8083/api/FlightInformation/CreateFlightLoadEstimate',
+            requests.post(url='http://192.168.115.10:8081/api/FlightInformation/CreateFlightLoadEstimate',
                           json=result_data,
                           headers={'Authorization': f'Bearer {token}',
                                    'Content-type': 'application/json',
