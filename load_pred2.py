@@ -22,6 +22,7 @@ def mean_load_pred2(input_data_list):
         try:
             df = pd.DataFrame(input_data_dict['GetAllFlightsWithSameConditionRobotResponseItemViewModels'])
             PkFlightInformation = input_data_dict['PkFlightInformation']
+            df_len = len(df)
             df['year'] = np.array(pd.DatetimeIndex(df['GregorianDate']).year)
             df['month'] = np.array(pd.DatetimeIndex(df['GregorianDate']).month)
             df['day'] = np.array(pd.DatetimeIndex(df['GregorianDate']).day)
@@ -75,7 +76,7 @@ def mean_load_pred2(input_data_list):
             ])
 
             # KFold for cross-validation
-            kfold = KFold(n_splits=5, random_state=None) #shuffle=True
+            kfold = KFold(n_splits=5, random_state=None)  # shuffle=True
 
             # Hyperparameter grid
             param_grid = {
@@ -83,9 +84,9 @@ def mean_load_pred2(input_data_list):
                 'stacked_regressor__lasso__alpha': np.logspace(-3, 0, 2),
                 # 'stacked_regressor__random_forest__n_estimators': [100, 200, 500],
                 # 'stacked_regressor__random_forest__max_depth': [2,3,4,5],
-                'stacked_regressor__gbm__n_estimators': [100,200, 500, 1000],
+                'stacked_regressor__gbm__n_estimators': [100, 200, 500, 1000],
                 # 'stacked_regressor__gbm__learning_rate': [0.01],
-                'stacked_regressor__gbm__max_depth': [2,3,4,5],
+                'stacked_regressor__gbm__max_depth': [2, 3, 4, 5],
                 # 'stacked_regressor__ada__n_estimators': [10, 50, 100],
                 # 'stacked_regressor__ada__learning_rate': [0.01]
             }
@@ -106,10 +107,11 @@ def mean_load_pred2(input_data_list):
             x_test = df_trans[-test_len:, :-1]
             y_test = df_trans[-test_len:, -1:]
             if len(df) == 0:
-                requests.post(url='http://192.168.115.10:8083/api/FlightInformation/CreateFlightLoadEstimate',
+                requests.post(url='http://192.168.115.10:8081/api/FlightInformation/CreateFlightLoadEstimate',
                               json={
                                   "fkFlightInformation": PkFlightInformation,
-                                  "load": -1
+                                  "load": -1,
+                                  "FlightCount": None
                               },
                               headers={'Authorization': f'Bearer {token}',
                                        'Content-type': 'application/json',
@@ -147,11 +149,12 @@ def mean_load_pred2(input_data_list):
             model.fit(x_train, y_train)
             y_pred = model.predict(x_test)
             # print(np.mean(np.abs(y_pred - y_test)), md)
-            y_pred = ct1.named_transformers_['out'].inverse_transform(y_pred.reshape(-1,1))
+            y_pred = ct1.named_transformers_['out'].inverse_transform(y_pred.reshape(-1, 1))
             token = api_token_handler()
             result_data = {
                 "fkFlightInformation": PkFlightInformation,
-                "load": y_pred[0][0]
+                "load": y_pred[0][0],
+                "FlightCount": df_len
             }
             api_result = requests.post(url='http://192.168.115.10:8081/api/FlightInformation/CreateFlightLoadEstimate',
                                        json=result_data,
@@ -161,9 +164,13 @@ def mean_load_pred2(input_data_list):
             if not json.loads(api_result.text)['success']:
                 print(f'y_pred:{y_pred} did not recorded in DB.')
         except:
+            result_data = {
+                "fkFlightInformation": PkFlightInformation,
+                "load": -1,
+                "FlightCount": 0
+            }
             requests.post(url='http://192.168.115.10:8081/api/FlightInformation/CreateFlightLoadEstimate',
                           json=result_data,
                           headers={'Authorization': f'Bearer {token}',
                                    'Content-type': 'application/json',
                                    })
-
