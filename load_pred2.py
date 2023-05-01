@@ -93,7 +93,7 @@ def mean_load_pred2(input_data_list):
 
             # GridSearchCV
             grid_search = GridSearchCV(
-                pipeline, param_grid, scoring='neg_mean_squared_error', cv=kfold, n_jobs=-1, verbose=1
+                pipeline, param_grid, scoring='neg_mean_squared_error', cv=kfold, n_jobs=3, verbose=1
             )
 
             # plt.figure(figsize=(10, 6))
