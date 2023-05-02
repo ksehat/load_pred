@@ -107,7 +107,7 @@ def mean_load_pred(input_data_list):
                                                 'Content-type': 'application/json',
                                                 })
             if not json.loads(api_result.text)['success']:
-                print(f'y_pred:{y_pred} did not recorded in DB.')
+                print(f'y_pred:{y_pred} with {PkFlightInformation} did not recorded in DB.')
         except:
             requests.post(url='http://192.168.115.10:8081/api/FlightInformation/CreateFlightLoadEstimate',
                           json=result_data,
