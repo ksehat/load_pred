@@ -4,12 +4,14 @@ import os
 from datetime import datetime as dt
 def call_login_token():
     dict1 = {
-        "username": "100737",
-        "password": "Mty@4380",
+        "username": "k.sehat",
+        "password": "Ks@123456",
         "applicationType": 961,
         "iP": "1365"
     }
-    r = requests.post(url='http://192.168.115.10:8083/api/Authentication/RequestToken', json=dict1)
+    r = requests.post(url='http://192.168.115.10:8081/api/Authentication/RequestToken',
+                      json=dict1,
+                      )
     token = json.loads(r.text)['token']
     expire_date = json.loads(r.text)['expires']
     return token, expire_date
