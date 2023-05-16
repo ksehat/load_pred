@@ -2,7 +2,7 @@ import copy
 import numpy as np
 import requests
 from functions import api_token_handler
-from load_pred2 import mean_load_pred2
+from load_pred import mean_load_pred
 import pandas as pd
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import LabelEncoder, Normalizer, StandardScaler, KBinsDiscretizer
@@ -27,7 +27,10 @@ df0 = pd.read_excel('data/df.xlsx')
 index1 = [x[1] for x in
           df0.groupby('FlightRoute').apply(lambda x: x[x['Departure'] < x['Departure'].max()]['PaxWeight']).shift(
               1).index]
-for i in range(40):
+
+shift_num = 40
+
+for i in range(shift_num):
     df0[f'PaxWeight_shift{i}'] = pd.DataFrame(
         (df0.groupby('FlightRoute').apply(lambda x: x[x['Departure'] < x['Departure'].max()]['PaxWeight']).shift(
             i + 1)).values, index=index1)
@@ -41,10 +44,12 @@ df0['hour'] = np.array(pd.DatetimeIndex(df0['Departure']).hour)
 le_route = LabelEncoder()
 df0['FlightRoute'] = le_route.fit_transform(df0['FlightRoute'])
 
-df1 = df0.filter(
-    ['year', 'month', 'day', 'dayofweek', 'hour', 'FlightRoute', 'is_holiday', 'PaxWeight_shift1', 'PaxWeight_shift2',
-     # 'year', 'month', 'day', 'dayofweek', 'hour',
-     'PaxWeight'])
+filtered_columns_list = ['year', 'month', 'day', 'dayofweek', 'hour', 'FlightRoute', 'is_holiday']
+for i in range(shift_num):
+    filtered_columns_list.append(f'PaxWeight_shift{i+1}')
+filtered_columns_list.append('PaxWeight')
+
+df1 = df0.filter(filtered_columns_list)
 df1 = df1.iloc[100:, :]
 
 # le = LabelEncoder()

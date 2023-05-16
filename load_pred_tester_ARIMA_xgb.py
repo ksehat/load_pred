@@ -2,7 +2,7 @@ import copy
 import numpy as np
 import requests
 from functions import api_token_handler
-from load_pred2 import mean_load_pred2
+from load_pred import mean_load_pred2
 import pandas as pd
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import LabelEncoder, Normalizer, StandardScaler, KBinsDiscretizer
