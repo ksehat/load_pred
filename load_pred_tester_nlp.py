@@ -15,92 +15,81 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import cross_val_score, KFold
 from sklearn.neural_network import MLPRegressor
 from keras.models import Sequential
-from keras.layers import Dense
-
-def create_model(num_layers, neurons):
-    model = Sequential()
-    for i in range(num_layers):
-        model.add(Dense(neurons[i], activation='relu'))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-    return model
-
-
-
-def model_tracker(model, x, y):
-    # Split the data into training and validation sets
-    kf = KFold(n_splits=50, shuffle=False)
-
-    # Initialize empty lists to track the training and validation losses
-    train_losses = []
-    val_losses = []
-    models = []
-    x, y = np.array(x), np.array(y)
-    # Loop over the K folds and track the training and validation losses
-    for train_index, val_index in kf.split(x):
-        x_train, y_train = x[train_index], y[train_index]
-        x_val, y_val = x[val_index], y[val_index]
-        model.fit(x_train, y_train)
-        y_train_pred = model.predict(x_train)
-        y_val_pred = model.predict(x_val)
-        train_loss = mae(y_train, y_train_pred)
-        val_loss = mae(y_val, y_val_pred)
-        train_losses.append(train_loss)
-        val_losses.append(val_loss)
-        models.append(model)
-
-    index_best_model = val_losses.index(min(val_losses[1:]))
-
-
-    # Plot the training and validation losses over K folds
-    plt.plot(train_losses, label='Training loss')
-    plt.plot(val_losses, label='Validation loss')
-    plt.legend()
-    plt.show()
-
-    return models[index_best_model]
+from keras.layers import Input, Dense
+from keras.models import Model
+from keras.callbacks import EarlyStopping
+import tensorflow as tf
+from create_model import create_model
 
 # Load your data into a DataFrame
-data = pd.read_csv('df.csv')
-data = data.filter(['is_holiday', 'year', 'month', 'day', 'dayofweek', 'PaxWeight'])
-le = LabelEncoder()
-data['year'] = le.fit_transform(data['year'])
+df0 = pd.read_excel('data/df.xlsx')
 
-data_trans = copy.deepcopy(data)
-pax_weight_transformer = StandardScaler()
-data_trans['PaxWeight'][:-1] = \
-    pax_weight_transformer.fit_transform(data['PaxWeight'][:-1].values.reshape(-1, 1)).reshape(1, -1)[0]
+index1 = [x[1] for x in
+          df0.groupby('FlightRoute').apply(lambda x: x[x['Departure'] < x['Departure'].max()]['PaxWeight']).shift(
+              1).index]
+for i in range(40):
+    df0[f'PaxWeight_shift{i}'] = pd.DataFrame(
+        (df0.groupby('FlightRoute').apply(lambda x: x[x['Departure'] < x['Departure'].max()]['PaxWeight']).shift(
+            i + 1)).values, index=index1)
+
+df0['year'] = np.array(pd.DatetimeIndex(df0['Departure']).year)
+df0['month'] = np.array(pd.DatetimeIndex(df0['Departure']).month)
+df0['day'] = np.array(pd.DatetimeIndex(df0['Departure']).day)
+df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['Departure']).dayofweek)
+df0['hour'] = np.array(pd.DatetimeIndex(df0['Departure']).hour)
+
+le_route = LabelEncoder()
+df0['FlightRoute'] = le_route.fit_transform(df0['FlightRoute'])
+
+df1 = df0.filter(
+    ['year', 'month', 'day', 'dayofweek', 'hour', 'FlightRoute', 'is_holiday', 'PaxWeight_shift1', 'PaxWeight_shift2',
+     # 'year', 'month', 'day', 'dayofweek', 'hour',
+     'PaxWeight'])
+df1 = df1.iloc[100:, :]
+
+# le = LabelEncoder()
+# df1['year'] = le.fit_transform(df1['year'])
+
+data_trans = copy.deepcopy(df1)
+# pax_weight_transformer = StandardScaler()
+# ss_transformer = StandardScaler()
+#
+# data_trans['PaxWeight'] = pd.DataFrame(
+#     pax_weight_transformer.fit_transform(data_trans['PaxWeight'].values.reshape(-1, 1)), index=data_trans.index)
+# data_trans.iloc[:, :-1] = pd.DataFrame(ss_transformer.fit_transform(data_trans.iloc[:, :-1]),
+#                                        columns=data_trans.columns[:-1])
+
+data_trans.dropna(inplace=True)
 
 # Adding new features related to last days
-data_trans_shifted = pd.concat([data_trans[data_trans.columns[:-1]], data_trans.shift(1).add_suffix('_shifted1')], axis=1)
-data_trans_shifted = pd.concat([data_trans_shifted, data_trans.shift(2).add_suffix('_shifted2')], axis=1)
-data_trans_shifted = pd.concat([data_trans_shifted, data_trans['PaxWeight']], axis=1)
-data_trans_shifted.dropna(inplace=True)
-data_trans_shifted.reset_index(inplace=True, drop=True)
+# data_trans_shifted = pd.concat([data_trans[data_trans.columns[:-1]], data_trans.shift(1).add_suffix('_shifted1')], axis=1)
+# data_trans_shifted = pd.concat([data_trans_shifted, data_trans.shift(2).add_suffix('_shifted2')], axis=1)
+# data_trans_shifted = pd.concat([data_trans_shifted, data_trans['PaxWeight']], axis=1)
+# data_trans_shifted.dropna(inplace=True)
+# data_trans_shifted.reset_index(inplace=True, drop=True)
 
+df2 = copy.deepcopy(data_trans)
 
-
-
-# Define the columns you want to use as features
-features = list(data_trans_shifted.columns[:-1])
-
-# Create a PolynomialFeatures object with the desired degree
-poly = PolynomialFeatures(degree=5)
-
-# Fit and transform your data
-poly_features = poly.fit_transform(data_trans_shifted[features])
-
-# Create a list of column names for the polynomial features DataFrame
-poly_columns = []
-for i in range(poly_features.shape[1]):
-    poly_columns.append(f'poly_{i}')
-
-# Create a new DataFrame with the polynomial features
-poly_df = pd.DataFrame(poly_features, columns=poly_columns)
-
-# Concatenate the original DataFrame with the polynomial features DataFrame
-data_temp = pd.concat([data_trans_shifted[features], poly_df], axis=1)
-df1 = pd.concat([data_temp, data_trans_shifted['PaxWeight']], axis=1)
+# # Define the columns you want to use as features
+# features = list(data_trans_shifted.columns[:-1])
+#
+# # Create a PolynomialFeatures object with the desired degree
+# poly = PolynomialFeatures(degree=5)
+#
+# # Fit and transform your data
+# poly_features = poly.fit_transform(data_trans_shifted[features])
+#
+# # Create a list of column names for the polynomial features DataFrame
+# poly_columns = []
+# for i in range(poly_features.shape[1]):
+#     poly_columns.append(f'poly_{i}')
+#
+# # Create a new DataFrame with the polynomial features
+# poly_df = pd.DataFrame(poly_features, columns=poly_columns)
+#
+# # Concatenate the original DataFrame with the polynomial features DataFrame
+# data_temp = pd.concat([data_trans_shifted[features], poly_df], axis=1)
+# df1 = pd.concat([data_temp, data_trans_shifted['PaxWeight']], axis=1)
 
 # # Create a KBinsDiscretizer object with the desired number of bins and strategy
 # discretizer = KBinsDiscretizer(n_bins=10, encode='ordinal', strategy='quantile')
@@ -113,19 +102,36 @@ df1 = pd.concat([data_temp, data_trans_shifted['PaxWeight']], axis=1)
 
 # Define the column you want to predict and the columns you want to use as features
 col_predict = 'PaxWeight'
-features = list(df1.columns[:-1])
+features = list(df2.columns[:-1])
 
 # Split your data into training and testing sets
-x_train, x_test, y_train, y_test = train_test_split(df1[features], df1[col_predict], test_size=0.1, shuffle=False)
+x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predict], test_size=0.1, shuffle=False)
 
 # Create and train a GradientBoostingRegressor
 # model = GradientBoostingRegressor(n_estimators=500, max_depth=4, random_state=3, n_iter_no_change=100)
-model = MLPRegressor(hidden_layer_sizes=(100,40,20,10,5,2), learning_rate='adaptive', early_stopping=1, learning_rate_init=0.1, max_iter=1000, verbose=1, shuffle=0, random_state=3, n_iter_no_change=100, tol=1e-5)
+# model = MLPRegressor(hidden_layer_sizes=(100,40,20,10,5,2), learning_rate='adaptive', early_stopping=1, learning_rate_init=0.1, max_iter=1000, verbose=1, shuffle=0, random_state=3, n_iter_no_change=100, tol=1e-5)
 # model = AdaBoostRegressor(n_estimators=2000, random_state=3, learning_rate=0.01)
 # model = LinearRegression()
 # model = HuberRegressor(max_iter=50)
+
 # model = TheilSenRegressor(max_iter=50)
-# gbm.fit(x_train, y_train)
+
+# model = create_nlp_model(x_train.shape[1], [ 500, 100, 50, 20,5])
+model = create_model(x_train.values, ['Conv1D', 'Conv1D', 'Dense', 'Dense'], [10, 10, 10, 5])
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+              loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
+
+es = EarlyStopping(monitor='loss', mode='min', patience=100, restore_best_weights=True)
+history = model.fit(x_train.values.reshape((x_train.values.shape[0], x_train.values.shape[1], 1)), y_train,
+                    validation_data=(x_test, y_test), callbacks=es, epochs=50000, batch_size=50)
+
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Test'], loc='upper left')
+plt.show()
 
 # selector = SelectFromModel(model, prefit=False).fit(x_train,y_train)
 #
@@ -134,7 +140,7 @@ model = MLPRegressor(hidden_layer_sizes=(100,40,20,10,5,2), learning_rate='adapt
 #
 # # model.fit(x_train_selected, y_train)
 #
-model = model_tracker(model, x_train[:-1], y_train[:-1])
+# model = model_tracker(model, x_train[:-1], y_train[:-1])
 #
 # # Make a prediction for the last row of data
 # y_pred_untrans = model.predict(x_test_selected)
@@ -144,10 +150,15 @@ model = model_tracker(model, x_train[:-1], y_train[:-1])
 # y_actual = pax_weight_transformer.inverse_transform(y_test.values.reshape(-1, 1))
 
 # model.fit(x_train, y_train)
-y_pred = pax_weight_transformer.inverse_transform(model.predict(x_test).reshape(1, -1))
-y_actual = pax_weight_transformer.inverse_transform(y_test.values.reshape(1, -1))
+y_pred = model.predict(x_test).reshape(1, -1)
+y_actual = y_test.values.reshape(1, -1)
 
 df_result = pd.DataFrame({'pred': y_pred.reshape(-1),
                           'actual': y_actual.reshape(-1)})
 df_result['error'] = df_result['actual'] - df_result['pred']
+for i in range(15):
+    print(f'Size of the errors between {i}kg to {i + 1}kg',
+          len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 1))]) / len(
+              df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
+model.save('my_model.h5')
