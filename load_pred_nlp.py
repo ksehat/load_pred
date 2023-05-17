@@ -21,6 +21,7 @@ from keras.callbacks import EarlyStopping
 import tensorflow as tf
 from create_model import create_model
 from create_model import create_manual_model
+import pickle
 
 # Load your data into a DataFrame
 df0 = pd.read_excel('data/df.xlsx')
@@ -32,7 +33,11 @@ df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['Departure']).dayofweek)
 df0['hour'] = np.array(pd.DatetimeIndex(df0['Departure']).hour)
 
 le_route = LabelEncoder()
-df0['FlightRoute'] = le_route.fit_transform(df0['FlightRoute'])
+df0['FlightRoute1'] = le_route.fit_transform(df0['FlightRoute'])
+
+with open('label_encoder.pkl', 'wb') as f:
+    pickle.dump(le_route, f)
+
 df0.drop(['Departure', 'GregorianDate'], inplace=True, axis=1)
 
 

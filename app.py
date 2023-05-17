@@ -2,8 +2,7 @@ import flask
 from flask import Flask, request
 import json
 from waitress import serve
-from load_pred_ML import mean_load_pred
-from load_pred import mean_load_pred
+from load_pred_pretrained_model import load_pred_pretrained_model
 
 # FLASK_APP = 'app.py'
 
@@ -12,10 +11,8 @@ app1 = Flask(__name__)
 
 @app1.route('/', methods=['POST'])
 def get_data():
-    data_list = []
     if (request.method == 'POST'):
-        data_list.append(json.loads(request.data))
-        mean_load_pred(data_list)
+        load_pred_pretrained_model(json.loads(request.data)['GetAllFutureFlightsResponseItemViewModels'])
         return flask.Response(response=None)
 
 
