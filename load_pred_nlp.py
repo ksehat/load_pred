@@ -20,20 +20,10 @@ from keras.models import Model
 from keras.callbacks import EarlyStopping
 import tensorflow as tf
 from create_model import create_model
+from create_model import create_manual_model
 
 # Load your data into a DataFrame
 df0 = pd.read_excel('data/df.xlsx')
-
-index1 = [x[1] for x in
-          df0.groupby('FlightRoute').apply(lambda x: x[x['Departure'] < x['Departure'].max()]['PaxWeight']).shift(
-              1).index]
-
-shift_num = 40
-
-for i in range(shift_num):
-    df0[f'PaxWeight_shift{i}'] = pd.DataFrame(
-        (df0.groupby('FlightRoute').apply(lambda x: x[x['Departure'] < x['Departure'].max()]['PaxWeight']).shift(
-            i + 1)).values, index=index1)
 
 df0['year'] = np.array(pd.DatetimeIndex(df0['Departure']).year)
 df0['month'] = np.array(pd.DatetimeIndex(df0['Departure']).month)
@@ -43,14 +33,26 @@ df0['hour'] = np.array(pd.DatetimeIndex(df0['Departure']).hour)
 
 le_route = LabelEncoder()
 df0['FlightRoute'] = le_route.fit_transform(df0['FlightRoute'])
+df0.drop(['Departure', 'GregorianDate'], inplace=True, axis=1)
+
+
+shift_num = 10
+df_temp0 = copy.deepcopy(df0)
+for i in range(shift_num):
+    df0 = pd.concat([df0, df_temp0.groupby('FlightRoute').shift(periods=i+1).add_suffix(f'_shifted{i+1}')], axis=1)
+
+df0.dropna(inplace=True)
 
 filtered_columns_list = ['year', 'month', 'day', 'dayofweek', 'hour', 'FlightRoute', 'is_holiday']
+all_org_rows_list = filtered_columns_list + ['PaxWeight']
 for i in range(shift_num):
-    filtered_columns_list.append(f'PaxWeight_shift{i+1}')
+    filtered_columns_list_temp = [x+f'_shifted{i+1}' for x in all_org_rows_list]
+    for x in filtered_columns_list_temp:
+        filtered_columns_list.append(x)
 filtered_columns_list.append('PaxWeight')
 
 df1 = df0.filter(filtered_columns_list)
-df1 = df1.iloc[100:, :]
+# df1 = df1.iloc[100:, :]
 
 # le = LabelEncoder()
 # df1['year'] = le.fit_transform(df1['year'])
@@ -122,13 +124,14 @@ x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predi
 # model = TheilSenRegressor(max_iter=50)
 
 # model = create_nlp_model(x_train.shape[1], [ 500, 100, 50, 20,5])
-model = create_model(x_train.values, ['Conv1D', 'Conv1D', 'Dense', 'Dense'], [10, 10, 10, 5])
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+# model = create_model(x_train.values, ['Conv1D', 'Conv1D', 'Conv1D', 'Dense', 'Dense'], [50, 20, 10, 10, 5])
+model = create_manual_model(x_train.values)
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es = EarlyStopping(monitor='loss', mode='min', patience=100, restore_best_weights=True)
+es = EarlyStopping(monitor='loss', mode='min', patience=200, restore_best_weights=True)
 history = model.fit(x_train.values.reshape((x_train.values.shape[0], x_train.values.shape[1], 1)), y_train,
-                    validation_data=(x_test, y_test), callbacks=es, epochs=50000, batch_size=50)
+                    validation_data=(x_test, y_test), callbacks=es, epochs=10000, batch_size=100)
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])

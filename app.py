@@ -5,21 +5,19 @@ from waitress import serve
 from load_pred_ML import mean_load_pred
 from load_pred import mean_load_pred
 
-app = Flask(__name__)
-data_list = []
+# FLASK_APP = 'app.py'
+
+app1 = Flask(__name__)
 
 
-@app.route('/', methods=['POST', 'GET'])
+@app1.route('/', methods=['POST'])
 def get_data():
-    global data_list
+    data_list = []
     if (request.method == 'POST'):
         data_list.append(json.loads(request.data))
-        return flask.Response(response=None)
-    if (request.method == 'GET'):
         mean_load_pred(data_list)
-        data_list = []
         return flask.Response(response=None)
 
 
 if __name__ == '__main__':
-    serve(app, host='192.168.115.17', port='8080', threads=100)
+    serve(app1, host='192.168.115.17', port='8080', threads=100)
