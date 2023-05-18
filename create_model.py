@@ -61,19 +61,20 @@ def create_manual_model(input_data):
     input_layer = keras.Input(shape=input_shape)
 
     x = input_layer
-    x1 = layers.Conv1D(20, kernel_size=20, activation="relu")(x)
+    x1 = layers.Conv1D(30, kernel_size=20, activation="relu")(x)
+    x1 = layers.Dropout(0.25)(x1)
     x2 = layers.Conv1D(20, kernel_size=10, activation="relu")(x1)
     # x = layers.Conv1D(10, kernel_size=10, activation="relu")(x)
     # x = layers.Dense(100, activation="relu")(x)
     # x = layers.Dense(50, activation="relu")(x)
-    x3 = layers.Dense(25, activation="relu")(x2)
+    x3 = layers.Dense(10, activation="relu")(x2)
     x4 = layers.Dense(10, activation="relu")(x3)
     x5 = layers.Dense(5, activation="relu")(x4)
     x6 = layers.Flatten()(x5)
     output_layer1 = layers.Dense(1)(x6)
 
     y = input_layer
-    y = layers.Dense(25, activation="relu")(y)
+    y = layers.Dense(10, activation="relu")(y)
     y = layers.Dense(10, activation="relu")(y)
     y = layers.Dense(5, activation="relu")(y)
     y = layers.Flatten()(y)
