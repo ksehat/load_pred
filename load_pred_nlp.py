@@ -33,7 +33,7 @@ df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['Departure']).dayofweek)
 df0['hour'] = np.array(pd.DatetimeIndex(df0['Departure']).hour)
 
 le_route = LabelEncoder()
-df0['FlightRoute1'] = le_route.fit_transform(df0['FlightRoute'])
+df0['FlightRoute'] = le_route.fit_transform(df0['FlightRoute'])
 
 with open('label_encoder.pkl', 'wb') as f:
     pickle.dump(le_route, f)
@@ -131,10 +131,10 @@ x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predi
 # model = create_nlp_model(x_train.shape[1], [ 500, 100, 50, 20,5])
 # model = create_model(x_train.values, ['Conv1D', 'Conv1D', 'Conv1D', 'Dense', 'Dense'], [50, 20, 10, 10, 5])
 model = create_manual_model(x_train.values)
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es = EarlyStopping(monitor='loss', mode='min', patience=200, restore_best_weights=True)
+es = EarlyStopping(monitor='loss', mode='min', patience=100, restore_best_weights=True)
 history = model.fit(x_train.values.reshape((x_train.values.shape[0], x_train.values.shape[1], 1)), y_train,
                     validation_data=(x_test, y_test), callbacks=es, epochs=10000, batch_size=100)
 
