@@ -1,10 +1,14 @@
 import numpy as np
 import keras
+import tensorflow as tf
+from tensorflow import keras
 from keras import layers
 
 
-def create_model(input_data, layer_types, layer_sizes):
-    # counter = 1
+
+def auto_model(input_data, layer_types, layer_sizes):
+    physical_devices = tf.config.list_physical_devices("GPU")
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
     if 'Conv2D' in layer_types:
         input_shape = [input_data.shape[1], 1, 1]
     elif 'Conv1D' in layer_types:
@@ -56,12 +60,15 @@ def create_model(input_data, layer_types, layer_sizes):
     return model
 
 
-def create_manual_model(input_data):
+def manual_model(input_data):
+    physical_devices = tf.config.list_physical_devices("GPU")
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
     input_shape = [input_data.shape[1], 1]
     input_layer = keras.Input(shape=input_shape)
 
     x = input_layer
     x1 = layers.Conv1D(30, kernel_size=20, activation="relu")(x)
+    x1 = layers.BatchNormalization()(x1)
     x1 = layers.Dropout(0.25)(x1)
     x2 = layers.Conv1D(20, kernel_size=10, activation="relu")(x1)
     x2 = layers.Dropout(0.25)(x2)
