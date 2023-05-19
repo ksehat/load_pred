@@ -64,6 +64,7 @@ def create_manual_model(input_data):
     x1 = layers.Conv1D(30, kernel_size=20, activation="relu")(x)
     x1 = layers.Dropout(0.25)(x1)
     x2 = layers.Conv1D(20, kernel_size=10, activation="relu")(x1)
+    x2 = layers.Dropout(0.25)(x2)
     # x = layers.Conv1D(10, kernel_size=10, activation="relu")(x)
     # x = layers.Dense(100, activation="relu")(x)
     # x = layers.Dense(50, activation="relu")(x)
