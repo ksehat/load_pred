@@ -19,9 +19,11 @@ from keras.layers import Input, Dense
 from keras.models import Model
 from keras.callbacks import EarlyStopping
 import tensorflow as tf
-from create_model import create_model
-from create_model import create_manual_model
+from create_model import manual_model
 import pickle
+
+physical_devices = tf.config.list_physical_devices("GPU")
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 # Load your data into a DataFrame
 df0 = pd.read_excel('data/df.xlsx')
@@ -41,7 +43,7 @@ with open('label_encoder.pkl', 'wb') as f:
 df0.drop(['Departure', 'GregorianDate'], inplace=True, axis=1)
 
 
-shift_num = 10
+shift_num = 50
 df_temp0 = copy.deepcopy(df0)
 for i in range(shift_num):
     df0 = pd.concat([df0, df_temp0.groupby('FlightRoute').shift(periods=i+1).add_suffix(f'_shifted{i+1}')], axis=1)
@@ -130,7 +132,7 @@ x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predi
 
 # model = create_nlp_model(x_train.shape[1], [ 500, 100, 50, 20,5])
 # model = create_model(x_train.values, ['Conv1D', 'Conv1D', 'Conv1D', 'Dense', 'Dense'], [50, 20, 10, 10, 5])
-model = create_manual_model(x_train.values)
+model = manual_model(x_train.values)
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
