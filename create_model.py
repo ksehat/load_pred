@@ -61,22 +61,20 @@ def auto_model(input_data, layer_types, layer_sizes):
 
 
 def manual_model(input_data):
-    physical_devices = tf.config.list_physical_devices("GPU")
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
     input_shape = [input_data.shape[1], 1]
     input_layer = keras.Input(shape=input_shape)
 
     x = input_layer
-    x1 = layers.Conv1D(30, kernel_size=20, activation="relu")(x)
-    x1 = layers.BatchNormalization()(x1)
+    x1 = layers.Conv1D(20, kernel_size=20, activation="relu")(x)
+    # x1 = layers.BatchNormalization()(x1)
     x1 = layers.Dropout(0.25)(x1)
     x2 = layers.Conv1D(20, kernel_size=10, activation="relu")(x1)
-    x2 = layers.Dropout(0.25)(x2)
+    # x2 = layers.Dropout(0.25)(x2)
     # x = layers.Conv1D(10, kernel_size=10, activation="relu")(x)
     # x = layers.Dense(100, activation="relu")(x)
     # x = layers.Dense(50, activation="relu")(x)
-    x3 = layers.Dense(10, activation="relu")(x2)
-    x4 = layers.Dense(10, activation="relu")(x3)
+    x3 = layers.Dense(5, activation="relu")(x2)
+    x4 = layers.Dense(5, activation="relu")(x3)
     x5 = layers.Dense(5, activation="relu")(x4)
     x6 = layers.Flatten()(x5)
     output_layer1 = layers.Dense(1)(x6)

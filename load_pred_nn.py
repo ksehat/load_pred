@@ -22,8 +22,8 @@ import tensorflow as tf
 from create_model import manual_model
 import pickle
 
-physical_devices = tf.config.list_physical_devices("GPU")
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
+# physical_devices = tf.config.list_physical_devices("GPU")
+# tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 # Load your data into a DataFrame
 df0 = pd.read_excel('data/df.xlsx')
@@ -43,7 +43,7 @@ with open('label_encoder.pkl', 'wb') as f:
 df0.drop(['Departure', 'GregorianDate'], inplace=True, axis=1)
 
 
-shift_num = 50
+shift_num = 20
 df_temp0 = copy.deepcopy(df0)
 for i in range(shift_num):
     df0 = pd.concat([df0, df_temp0.groupby('FlightRoute').shift(periods=i+1).add_suffix(f'_shifted{i+1}')], axis=1)
