@@ -17,7 +17,7 @@ def load_pred_pretrained_model(df_dict):
 
     token = api_token_handler()
 
-    df_past = pd.DataFrame(json.loads(requests.get(url='http://192.168.115.10:8081/api/Robots/GetAllPastFlights',
+    df_past = pd.DataFrame(json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightLoadEstimate/GetAllPastFlights',
                            headers={'Authorization': f'Bearer {token}',
                                     'Content-type': 'application/json',
                                     }
@@ -75,7 +75,7 @@ def load_pred_pretrained_model(df_dict):
                 "flightCount": 1,
                 "flightDate": str(flightdate).split('.')[0]
             }
-            api_result = requests.post(url='http://192.168.115.10:8081/api/Robots/CreateFlightLoadEstimate',
+            api_result = requests.post(url='http://192.168.115.10:8083/api/FlightLoadEstimate/CreateFlightLoadEstimate',
                            json=result_data,
                            headers={'Authorization': f'Bearer {token}',
                                     'Content-type': 'application/json',
@@ -90,7 +90,7 @@ def load_pred_pretrained_model(df_dict):
                 "flightCount": 1,
                 "flightDate": str(flightdate).split('.')[0]
             }
-            requests.post(url='http://192.168.115.10:8081/api/Robots/CreateFlightLoadEstimate',
+            requests.post(url='http://192.168.115.10:8083/api/FlightLoadEstimate/CreateFlightLoadEstimate',
                           json=result_data,
                           headers={'Authorization': f'Bearer {token}',
                                    'Content-type': 'application/json',
