@@ -6,7 +6,6 @@ import pickle
 import numpy as np
 from tensorflow import keras
 from functions import api_token_handler
-from sklearn.preprocessing import LabelEncoder
 
 
 def load_pred_pretrained_model(df_dict):
@@ -17,11 +16,11 @@ def load_pred_pretrained_model(df_dict):
 
     token = api_token_handler()
 
-    df_past = pd.DataFrame(json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightLoadEstimate/GetAllPastFlights',
+    df_past = pd.DataFrame(json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightLoadEstimate/GetAllPastFlightsLoad',
                            headers={'Authorization': f'Bearer {token}',
                                     'Content-type': 'application/json',
                                     }
-                           ).text)['getAllPastFlightsResponseItemViewModels'])
+                           ).text)['getAllPastFlightsLoadResponseItemViewModels'])
 
     with open('label_encoder.pkl', 'rb') as f:
         le = pickle.load(f)
@@ -46,7 +45,7 @@ def load_pred_pretrained_model(df_dict):
             df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
             df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
 
-            shift_num = 10
+            shift_num = 20
             df_temp0 = copy.deepcopy(df0)
             for kan1 in range(shift_num):
                 df0 = pd.concat(

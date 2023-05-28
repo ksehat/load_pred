@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+import keras
 import requests
 from functions import api_token_handler
 from load_pred import mean_load_pred
@@ -19,7 +20,6 @@ from keras.layers import Input, Dense
 from keras.models import Model
 from keras.callbacks import EarlyStopping
 import tensorflow as tf
-from create_model import manual_model
 import pickle
 
 # physical_devices = tf.config.list_physical_devices("GPU")
@@ -42,18 +42,17 @@ with open('label_encoder.pkl', 'wb') as f:
 
 df0.drop(['Departure', 'GregorianDate'], inplace=True, axis=1)
 
-
 shift_num = 20
 df_temp0 = copy.deepcopy(df0)
 for i in range(shift_num):
-    df0 = pd.concat([df0, df_temp0.groupby('FlightRoute').shift(periods=i+1).add_suffix(f'_shifted{i+1}')], axis=1)
+    df0 = pd.concat([df0, df_temp0.groupby('FlightRoute').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
 
 df0.dropna(inplace=True)
 
 filtered_columns_list = ['year', 'month', 'day', 'dayofweek', 'hour', 'FlightRoute', 'is_holiday']
 all_org_rows_list = filtered_columns_list + ['PaxWeight']
 for i in range(shift_num):
-    filtered_columns_list_temp = [x+f'_shifted{i+1}' for x in all_org_rows_list]
+    filtered_columns_list_temp = [x + f'_shifted{i + 1}' for x in all_org_rows_list]
     for x in filtered_columns_list_temp:
         filtered_columns_list.append(x)
 filtered_columns_list.append('PaxWeight')
@@ -73,13 +72,31 @@ features = list(df2.columns[:-1])
 # Split your data into training and testing sets
 x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predict], test_size=0.1, shuffle=False)
 
-model = manual_model(x_train.values)
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
-              loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
+# Compile and train the autoencoder
+# autoencoder_model, encoder_model = autoencoder(x_train.values)
+input_dim = x_train.shape[1]
+encoding_dim = 10
 
-es = EarlyStopping(monitor='loss', mode='min', patience=100, restore_best_weights=True)
-history = model.fit(x_train.values.reshape((x_train.values.shape[0], x_train.values.shape[1], 1)), y_train,
-                    validation_data=(x_test, y_test), callbacks=es, epochs=10000, batch_size=100)
+input_data = keras.Input(shape=(input_dim,1))
+x1 = keras.layers.Conv1D(10, activation='relu', kernel_size=10)(input_data)
+x1 = keras.layers.Dense(10, activation='relu')(x1)
+x1 = keras.layers.Dense(5, activation='relu')(x1)
+# x1 = keras.layers.Dense(5, activation='relu')(x1)
+encoded = keras.layers.Dense(encoding_dim, activation='relu')(x1)
+x2 = keras.layers.Dense(5, activation='relu')(encoded)
+# x2 = keras.layers.Dense(5, activation='relu')(x2)
+x2 = keras.layers.Dense(10, activation='relu')(x2)
+decoded = keras.layers.Conv1DTranspose(1, kernel_size=10, activation='relu')(x2)
+
+autoencoder_model = keras.Model(input_data, decoded)
+# Use the encoder part of the autoencoder as a feature extractor
+encoder = keras.Model(input_data, encoded)
+
+autoencoder_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-2),
+                          loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
+es = EarlyStopping(monitor='loss', mode='min', patience=10, restore_best_weights=True)
+history = autoencoder_model.fit(x_train.values, x_train.values,
+                    validation_data=(x_test.values, x_test.values), callbacks=es, epochs=10000, batch_size=100)
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -89,8 +106,24 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 
-# model.fit(x_train, y_train)
-y_pred = model.predict(x_test).reshape(1, -1)
+# Extract features from your data
+features_train = encoder.predict(x_train.values)
+features_test = encoder.predict(x_test.values)
+
+# Create a new model for prediction using the extracted features
+inputs = keras.Input(shape=(138,10))
+m1 = keras.layers.Dense(10)(inputs)
+outputs = keras.layers.Dense(1)(m1)
+model = keras.Model(inputs, outputs)
+
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
+                          loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
+es = EarlyStopping(monitor='loss', mode='min', patience=100, restore_best_weights=True)
+history = model.fit(features_train, y_train,
+                    validation_data=(features_test, y_test),
+                    callbacks=es, epochs=10000, batch_size=100)
+
+y_pred = model.predict(features_test).squeeze()
 y_actual = y_test.values.reshape(1, -1)
 
 df_result = pd.DataFrame({'pred': y_pred.reshape(-1),
@@ -101,4 +134,4 @@ for i in range(15):
           len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 1))]) / len(
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
-model.save('my_model.h5')
+# model.save('my_model.h5')
