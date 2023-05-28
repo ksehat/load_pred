@@ -101,7 +101,7 @@ model = manual_model_conv2d(x_train)
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es = EarlyStopping(monitor='loss', mode='min', patience=20, restore_best_weights=True)
+es = EarlyStopping(monitor='val_loss', mode='min', patience=20, restore_best_weights=True)
 
 history = model.fit(x_train, y_train,
                     validation_data=(x_test, y_test), callbacks=es, epochs=10000, batch_size=100)
