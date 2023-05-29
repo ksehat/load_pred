@@ -1,86 +1,93 @@
 import copy
 import numpy as np
-import requests
-from functions import api_token_handler
-from load_pred import mean_load_pred
 import pandas as pd
+import pickle
+import json
+import requests
 from sklearn.preprocessing import PolynomialFeatures
-from sklearn.preprocessing import LabelEncoder, Normalizer, StandardScaler, KBinsDiscretizer
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import GradientBoostingRegressor, AdaBoostRegressor, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, HuberRegressor, TheilSenRegressor
-from sklearn.feature_selection import SelectFromModel
-from sklearn.metrics import mean_absolute_error as mae
-import matplotlib.pyplot as plt
-from sklearn.model_selection import cross_val_score, KFold
-from sklearn.neural_network import MLPRegressor
-from keras.models import Sequential
-from keras.layers import Input, Dense
-from keras.models import Model
 from keras.callbacks import EarlyStopping
 import tensorflow as tf
 from create_model_baggage import manual_model
 from scikeras.wrappers import KerasRegressor
 from sklearn.ensemble import AdaBoostRegressor
-import pickle
+from functions import api_token_handler
 
 # physical_devices = tf.config.list_physical_devices("GPU")
 # tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 # Load your data into a DataFrame
-df0 = pd.read_excel('data/df_baggage.xlsx')
+token = api_token_handler()
+df0 = pd.DataFrame(
+    json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
+                            headers={'Authorization': f'Bearer {token}',
+                                     'Content-type': 'application/json',
+                                     }
+                            ).text)['getAllPastFlightsBaggageResponseItemViewModels'])
 
-df0.rename(columns={'PaxWeigth': 'PaxWeight'}, inplace=True)
+df0.drop('pkFlightInformation', axis=1, inplace=True)
 
-df0['year'] = np.array(pd.DatetimeIndex(df0['Departure']).year)
-df0['month'] = np.array(pd.DatetimeIndex(df0['Departure']).month)
-df0['day'] = np.array(pd.DatetimeIndex(df0['Departure']).day)
-df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['Departure']).dayofweek)
-df0['hour'] = np.array(pd.DatetimeIndex(df0['Departure']).hour)
+df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
+df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
+df0['baggage'] = df0['baggage'].astype(float)
+
+df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
+df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
+df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
+df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
+df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
+df0['is_holiday'][(np.array(pd.DatetimeIndex(df0['departure']).day_name()) == 'Friday')] = 1
+df0['is_holiday'][(np.array(pd.DatetimeIndex(df0['departure']).day_name()) == 'Thursday')] = 1
+
+df0['departure'] = pd.to_datetime(df0['departure'])
+df0.sort_values(by='departure', inplace=True)
+df0.reset_index(drop=True, inplace=True)
+
+holidays = df0.loc[df0['is_holiday'] == 1, 'departure']
+df0['days_until_holiday'] = holidays.reindex(df0.index, method='bfill').dt.date - df0['departure'].dt.date
+df0['days_until_holiday'] = pd.to_timedelta(df0['days_until_holiday']).dt.days
 
 le_route = LabelEncoder()
-df0['FlightRoute'] = le_route.fit_transform(df0['FlightRoute'])
+df0['route'] = le_route.fit_transform(df0['route'])
 
-with open('label_encoder_baggage_boosting.pkl', 'wb') as f:
+with open('label_encoder_baggage.pkl', 'wb') as f:
     pickle.dump(le_route, f)
 
-df0.drop(['Departure', 'pkFlightInformation'], inplace=True, axis=1)
+df0.drop(['departure', 'paxWeight', 'payLoad'], inplace=True, axis=1)
+
 
 shift_num = 10
 df_temp0 = copy.deepcopy(df0)
 for i in range(shift_num):
-    df0 = pd.concat([df0, df_temp0.groupby('FlightRoute').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
+    df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
 
 df0.dropna(inplace=True)
 
-filtered_columns_list = ['year', 'month', 'day', 'dayofweek', 'hour', 'FlightRoute', 'is_holiday', 'Seats', 'PaxWeight']
-all_org_rows_list = filtered_columns_list + ['BaggageWeight']
-for i in range(shift_num):
-    filtered_columns_list_temp = [x + f'_shifted{i + 1}' for x in all_org_rows_list]
-    for x in filtered_columns_list_temp:
-        filtered_columns_list.append(x)
-filtered_columns_list.append('BaggageWeight')
+col = df0.pop('baggage')
+df0.insert(len(df0.columns), 'baggage', col)
 
-df1 = df0.filter(filtered_columns_list)
-data_trans = copy.deepcopy(df1)
+data_trans = copy.deepcopy(df0)
 data_trans.dropna(inplace=True)
 df2 = copy.deepcopy(data_trans)
 
 # Define the column you want to predict and the columns you want to use as features
-col_predict = 'BaggageWeight'
+col_predict = 'baggage'
 features = list(df2.columns[:-1])
 
 # Split your data into training and testing sets
 x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predict], test_size=0.1, shuffle=False)
+# x_train = x_train0[x_train0['year'] >= 2022]
+# y_train = y_train0[x_train0['year'] >= 2022]
 
 
 es = EarlyStopping(monitor='loss', mode='min', patience=5, restore_best_weights=True)
 
-ann_estimator = KerasRegressor(build_fn=lambda: manual_model(x_train.values), epochs=10000, batch_size=300, verbose=1,
+ann_estimator = KerasRegressor(build_fn=lambda: manual_model(x_train.values), epochs=10000, batch_size=100, verbose=1,
                                callbacks=[es],
                                loss=tf.keras.losses.MeanAbsoluteError(),
-                               optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3))
-boosted_ann = AdaBoostRegressor(base_estimator=ann_estimator, n_estimators=5)
+                               optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4))
+boosted_ann = AdaBoostRegressor(base_estimator=ann_estimator, n_estimators=3)
 boosted_ann.fit(x_train, y_train) # scale your training data
 
 
