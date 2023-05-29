@@ -58,25 +58,13 @@ holidays = df0.loc[df0['is_holiday'] == 1, 'departure']
 df0['days_until_holiday'] = holidays.reindex(df0.index, method='bfill').dt.date - df0['departure'].dt.date
 df0['days_until_holiday'] = pd.to_timedelta(df0['days_until_holiday']).dt.days
 
-# Calculate the IQR
-Q1 = df0['baggage'].quantile(0.20)
-Q3 = df0['baggage'].quantile(0.80)
-IQR = Q3 - Q1
-
-# Define the outlier bounds
-lower_bound = Q1 - 1.5 * IQR
-upper_bound = Q3 + 1.5 * IQR
-
-# Identify the outliers
-outliers = df0[(df0['baggage'] < lower_bound) | (df0['baggage'] > upper_bound)]
-
 le_route = LabelEncoder()
 df0['route'] = le_route.fit_transform(df0['route'])
 
 with open('label_encoder_baggage.pkl', 'wb') as f:
     pickle.dump(le_route, f)
 
-df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
+df0.drop(['departure', 'payLoad'], inplace=True, axis=1)
 
 
 shift_num = 10
@@ -103,10 +91,10 @@ x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predi
 # y_train = y_train0[x_train0['year'] >= 2022]
 
 model = manual_model(x_train.values)
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es = EarlyStopping(monitor='loss', mode='min', patience=20, restore_best_weights=True)
+es = EarlyStopping(monitor='val_loss', mode='min', patience=20, restore_best_weights=True)
 history = model.fit(x_train.values.reshape((x_train.values.shape[0], x_train.values.shape[1], 1)), y_train,
                     validation_data=(x_test, y_test), callbacks=es, epochs=10000, batch_size=100)
 

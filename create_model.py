@@ -74,28 +74,28 @@ def manual_model(input_data):
     x4 = layers.Dense(5, activation="relu")(x3)
     x5 = layers.Dense(5, activation="relu")(x4)
     x6 = layers.Flatten()(x5)
-    output_layer1 = layers.Dense(1)(x6)
+    output_layer1 = layers.Dense(3)(x6)
 
     y = input_layer
     y = layers.Dense(10, activation="relu")(y)
     y = layers.Dense(10, activation="relu")(y)
     y = layers.Dense(5, activation="relu")(y)
     y = layers.Flatten()(y)
-    output_layer2 = layers.Dense(1)(y)
+    output_layer2 = layers.Dense(3)(y)
 
     z = x1
     z = layers.Dense(10, activation="relu")(z)
     z = layers.Dense(5, activation="relu")(z)
     z = layers.Dense(2, activation="relu")(z)
     z = layers.Flatten()(z)
-    output_layer3 = layers.Dense(1)(z)
+    output_layer3 = layers.Dense(3)(z)
 
     z1 = x2
     z1 = layers.Dense(10, activation="relu")(z1)
     z1 = layers.Dense(5, activation="relu")(z1)
     z1 = layers.Dense(2, activation="relu")(z1)
     z1 = layers.Flatten()(z1)
-    output_layer4 = layers.Dense(1)(z1)
+    output_layer4 = layers.Dense(3)(z1)
 
     output1 = layers.Concatenate()([output_layer1, output_layer2, output_layer3, output_layer4])
 

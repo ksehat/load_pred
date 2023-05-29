@@ -116,7 +116,7 @@ plt.show()
 
 # model.fit(x_train, y_train)
 y_pred = model.predict(x_test).reshape(1, -1)
-y_actual = y_test.values.reshape(1, -1)
+y_actual = y_test.reshape(1, -1)
 
 df_result = pd.DataFrame({'pred': y_pred.reshape(-1),
                           'actual': y_actual.reshape(-1)})
