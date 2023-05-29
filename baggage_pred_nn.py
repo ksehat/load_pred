@@ -1,22 +1,11 @@
 import copy
 import numpy as np
 import requests
-from functions import api_token_handler
-from load_pred import mean_load_pred
 import pandas as pd
 from sklearn.preprocessing import PolynomialFeatures
-from sklearn.preprocessing import LabelEncoder, Normalizer, StandardScaler, KBinsDiscretizer
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import GradientBoostingRegressor, AdaBoostRegressor, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, HuberRegressor, TheilSenRegressor
-from sklearn.feature_selection import SelectFromModel
-from sklearn.metrics import mean_absolute_error as mae
 import matplotlib.pyplot as plt
-from sklearn.model_selection import cross_val_score, KFold
-from sklearn.neural_network import MLPRegressor
-from keras.models import Sequential
-from keras.layers import Input, Dense
-from keras.models import Model
 from keras.callbacks import EarlyStopping
 import tensorflow as tf
 from create_model import manual_model
@@ -64,7 +53,7 @@ df0['route'] = le_route.fit_transform(df0['route'])
 with open('label_encoder_baggage.pkl', 'wb') as f:
     pickle.dump(le_route, f)
 
-df0.drop(['departure', 'payLoad'], inplace=True, axis=1)
+df0.drop(['departure', 'paxWeight', 'payLoad'], inplace=True, axis=1)
 
 
 shift_num = 10
