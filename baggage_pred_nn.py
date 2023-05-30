@@ -56,7 +56,7 @@ with open('label_encoder_baggage.pkl', 'wb') as f:
 df0.drop(['departure', 'paxWeight', 'payLoad'], inplace=True, axis=1)
 
 
-shift_num = 10
+shift_num = 2
 df_temp0 = copy.deepcopy(df0)
 for i in range(shift_num):
     df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
@@ -66,25 +66,25 @@ df0.dropna(inplace=True)
 col = df0.pop('baggage')
 df0.insert(len(df0.columns), 'baggage', col)
 
-data_trans = copy.deepcopy(df0)
-data_trans.dropna(inplace=True)
-df2 = copy.deepcopy(data_trans)
+pf = PolynomialFeatures(degree=3)
+df1 = pf.fit_transform(df0.iloc[:,:-1])
+df2 = np.concatenate((df1,df0.iloc[:,-1:].values), axis=1)
 
 # Define the column you want to predict and the columns you want to use as features
-col_predict = 'baggage'
-features = list(df2.columns[:-1])
+# col_predict = 'baggage'
+# features = list(df2.columns[:-1])
 
 # Split your data into training and testing sets
-x_train, x_test, y_train, y_test = train_test_split(df2[features], df2[col_predict], test_size=0.1, shuffle=False)
+x_train, x_test, y_train, y_test = train_test_split(df2[:,:-1], df2[:,-1], test_size=0.1, shuffle=False)
 # x_train = x_train0[x_train0['year'] >= 2022]
 # y_train = y_train0[x_train0['year'] >= 2022]
 
-model = manual_model(x_train.values)
+model = manual_model(x_train)
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
 es = EarlyStopping(monitor='val_loss', mode='min', patience=20, restore_best_weights=True)
-history = model.fit(x_train.values.reshape((x_train.values.shape[0], x_train.values.shape[1], 1)), y_train,
+history = model.fit(x_train.reshape((x_train.shape[0], x_train.shape[1], 1)), y_train,
                     validation_data=(x_test, y_test), callbacks=es, epochs=10000, batch_size=100)
 
 plt.plot(history.history['loss'])
