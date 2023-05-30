@@ -166,3 +166,48 @@ def manual_model_conv2d(input):
     model = keras.Model(inputs=input_layer, outputs=output_layer)
 
     return model
+
+
+def manual_model_dense(input_data):
+    input_shape = input_data.shape[1]
+    input_layer = keras.Input(shape=input_shape)
+
+    x = input_layer
+    x1 = layers.Dense(60, activation="relu")(x)
+    x2 = layers.Dense(25, activation="relu")(x1)
+    x3 = layers.Dense(5, activation="relu")(x2)
+    x4 = layers.Dense(5, activation="relu")(x3)
+    # x5 = layers.Dense(5, activation="relu")(x4)
+    output_layer1 = layers.Dense(3)(x4)
+
+    y = input_layer
+    y = layers.Dense(20, activation="relu")(y)
+    y = layers.Dense(10, activation="relu")(y)
+    y = layers.Dense(5, activation="relu")(y)
+    output_layer2 = layers.Dense(3)(y)
+
+    z = x1
+    z = layers.Dense(10, activation="relu")(z)
+    z = layers.Dense(5, activation="relu")(z)
+    z = layers.Dense(2, activation="relu")(z)
+    output_layer3 = layers.Dense(3)(z)
+
+    z1 = x2
+    z1 = layers.Dense(10, activation="relu")(z1)
+    z1 = layers.Dense(5, activation="relu")(z1)
+    z1 = layers.Dense(2, activation="relu")(z1)
+    output_layer4 = layers.Dense(3)(z1)
+
+    output1 = layers.Concatenate()([output_layer1, output_layer2, output_layer3, output_layer4])
+
+    # m1 = layers.Conv1DTranspose(10, kernel_size=2)(tf.expand_dims(input = output1, axis=2))
+    # # m1 = layers.Conv1D(20, kernel_size=1, activation="relu")()
+    # m1 = layers.BatchNormalization()(m1)
+    # m1 = layers.Dropout(0.25)(m1)
+    # m1 = layers.Dense(5, activation="relu")(m1)
+    # m1 = layers.Flatten()(m1)
+    output_layer = layers.Dense(1)(output1)
+
+    model = keras.Model(inputs=input_layer, outputs=output_layer)
+
+    return model
