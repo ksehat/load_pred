@@ -49,7 +49,7 @@ holidays = df0.loc[df0['is_holiday'] == 1, 'departure']
 df0['days_until_holiday'] = holidays.reindex(df0.index, method='bfill').dt.date - df0['departure'].dt.date
 df0['days_until_holiday'] = pd.to_timedelta(df0['days_until_holiday']).dt.days
 
-with open('label_encoder_baggage.pkl', 'rb') as f:
+with open('baggage_deployed_models/label_encoder_baggage.pkl', 'rb') as f:
     le_route = pickle.load(f)
 df0['route'] = le_route.fit_transform(df0['route'])
 
