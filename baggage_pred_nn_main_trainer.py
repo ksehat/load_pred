@@ -22,11 +22,11 @@ from functions import api_token_handler
 # Load your data into a DataFrame
 token = api_token_handler()
 df0 = pd.DataFrame(
-    json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
+    json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
                             headers={'Authorization': f'Bearer {token}',
                                      'Content-type': 'application/json',
                                      }
-                            ).text)['getAllPastFlightsBaggageResponseItemViewModels'])
+                            ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
 
 df0.drop('pkFlightInformation', axis=1, inplace=True)
 
@@ -71,20 +71,20 @@ df0.dropna(inplace=True)
 col = df0.pop('baggage')
 df0.insert(len(df0.columns), 'baggage', col)
 
-pf = PolynomialFeatures(degree=2)
-df1 = pf.fit_transform(df0.iloc[:,:-1])
-df2 = np.concatenate((df1,df0.iloc[:,-1:].values), axis=1)
-
-x_train, x_test, y_train, y_test = train_test_split(df2[:,:-1], df2[:,-1], test_size=0.0005, shuffle=False)
+# pf = PolynomialFeatures(degree=2)
+# df1 = pf.fit_transform(df0.iloc[:,:-1])
+# df2 = np.concatenate((df1,df0.iloc[:,-1:].values), axis=1)
+df2 = copy.deepcopy(np.array(df0))
+x_train, x_test, y_train, y_test = train_test_split(df2[:,:-1], df2[:,-1], test_size=0.01, shuffle=False)
 
 # =====================================================================================================
 model1 = manual_model_dense(x_train)
 model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es1 = EarlyStopping(monitor='val_loss', mode='min', patience=100, restore_best_weights=True)
-history = model1.fit(x_train.reshape((x_train.shape[0], x_train.shape[1], 1)), y_train,
-                    validation_data=(x_test, y_test), callbacks=es1, epochs=10000, batch_size=100)
+es1 = EarlyStopping(monitor='val_loss', mode='min', patience=50, restore_best_weights=True)
+history = model1.fit(x_train, y_train,
+                    validation_data=(x_test, y_test), callbacks=es1, epochs=10000, batch_size=50)
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -101,10 +101,10 @@ y_train2 = y_train[(abs(y_pred_train1.reshape(-1)-y_train) >= 300)]
 # =====================================================================================================
 model2 = GradientBoostingRegressor()
 model2.fit(x_train2, y_train2)
-y_pred_train2 = model1.predict(x_train)
-y_pred_test2 = model1.predict(x_test)
-x_train3 = np.concatenate((y_pred_train1,y_pred_train2), axis=1)
-x_test3 = np.concatenate((y_pred_test1,y_pred_test2), axis=1)
+y_pred_train2 = model2.predict(x_train)
+y_pred_test2 = model2.predict(x_test)
+x_train3 = np.concatenate((y_pred_train1.reshape(-1,1),y_pred_train2.reshape(-1,1)), axis=1)
+x_test3 = np.concatenate((y_pred_test1.reshape(-1,1),y_pred_test2.reshape(-1,1)), axis=1)
 # =====================================================================================================
 input_shape = x_train3.shape[1]
 input_layer = keras.Input(shape=input_shape)
@@ -120,7 +120,7 @@ model3 = keras.Model(inputs=input_layer, outputs=output_layer)
 model3.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es3 = EarlyStopping(monitor='val_loss', mode='min', patience=100, restore_best_weights=True)
+es3 = EarlyStopping(monitor='val_loss', mode='min', patience=50, restore_best_weights=True)
 history = model3.fit(x_train3, y_train,
                     validation_data=(x_test3, y_test), callbacks=es3, epochs=10000, batch_size=100)
 
@@ -144,7 +144,7 @@ for i in range(0, 1000, 100):
           len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 100))]) / len(
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
-model1.save('my_model_baggage_model1.h5')
-filename = 'model2.sav'
+model1.save('baggage_model1.h5')
+filename = 'baggage_deployed_models/baggage_model2.sav'
 pickle.dump(model2, open(filename, 'wb'))
-model3.save('my_model_baggage_model3.h5')
+model3.save('baggage_model3.h5')
