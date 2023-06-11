@@ -8,41 +8,32 @@ import tensorflow as tf
 import keras
 from keras import layers
 from functions import api_token_handler
+import joblib
+
 
 
 def baggage_pred_pretrained_model():
     token = api_token_handler()
+    df_past = pd.DataFrame(
+        json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
+                                headers={'Authorization': f'Bearer {token}',
+                                         'Content-type': 'application/json',
+                                         }
+                                ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
     df_future = pd.DataFrame(
-        json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightBaggageEstimate/GetAllFutureFlightsBaggage',
+        json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllFutureFlightsBaggage',
                                 headers={'Authorization': f'Bearer {token}',
                                          'Content-type': 'application/json',
                                          }
-                                ).text)['getAllFutureFlightsBaggageResponseItemViewModels'])
-    df_past = pd.DataFrame(
-        json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
-                                headers={'Authorization': f'Bearer {token}',
-                                         'Content-type': 'application/json',
-                                         }
-                                ).text)['getAllPastFlightsBaggageResponseItemViewModels'])
-    df_future.rename(columns={'Is_holiday': 'is_holiday', 'Route': 'route', 'Departure': 'departure',
-                              'PkFlightInformation': 'pkFlightInformation'}, inplace=True)
+                                ).text)['getAllFutureFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
+
     df_future['departure'] = pd.to_datetime(df_future['departure'])
-    df_future['paxWeight'] = 0
 
-    token = api_token_handler()
-
-    df_past = pd.DataFrame(
-        json.loads(requests.get(url='http://192.168.115.10:8083/api/FlightLoadEstimate/GetAllPastFlightsLoad',
-                                headers={'Authorization': f'Bearer {token}',
-                                         'Content-type': 'application/json',
-                                         }
-                                ).text)['getAllPastFlightsLoadResponseItemViewModels'])
-
-    with open('label_encoder.pkl', 'rb') as f:
+    with open('baggage_deployed_models\label_encoder_baggage.pkl', 'rb') as f:
         le = pickle.load(f)
 
-    df_future['route'] = df_future['route'].apply(lambda x: x.replace(">", "-"))
-    df_past['route'] = df_past['route'].apply(lambda x: x.replace(">", "-"))
+    df_future['route'] = df_future['route'].apply(lambda x: x.replace("-", ">"))
+    df_past['route'] = df_past['route'].apply(lambda x: x.replace("-", ">"))
 
     for i in range(len(df_future)):
         try:
@@ -50,17 +41,34 @@ def baggage_pred_pretrained_model():
             flightdate = df_future.iloc[i:i + 1, :]['departure'].values[0]
 
             df0 = pd.concat([df_past, df_future.iloc[i:i + 1, :]], axis=0, ignore_index=True)
-            df0.drop(['pkFlightInformation'], axis=1, inplace=True)
+            df0.drop(['pkFlightInformation', 'paxWeight', 'payLoad'], axis=1, inplace=True)
 
-            df0['route'] = df0['route'].apply(lambda x: le.transform([x])[0] if x in le.classes_ else -1)
+            df0['route'] = df0['route'].apply(lambda x: le.transform([x])[0] if x in le.classes_ else len(le.classes_)+1)
+
+            df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
+            df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
+            df0['baggage'] = df0['baggage'].astype(float)
 
             df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
             df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
             df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
             df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
             df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
+            df0['is_holiday'][(np.array(pd.DatetimeIndex(df0['departure']).day_name()) == 'Friday')] = 1
+            df0['is_holiday'][(np.array(pd.DatetimeIndex(df0['departure']).day_name()) == 'Thursday')] = 1
 
-            shift_num = 20
+            df0['departure'] = pd.to_datetime(df0['departure'])
+            df0.sort_values(by='departure', inplace=True)
+            df0.reset_index(drop=True, inplace=True)
+
+            holidays = df0.loc[df0['is_holiday'] == 1, 'departure']
+            df0['days_until_holiday'] = holidays.reindex(df0.index, method='bfill').dt.date - df0['departure'].dt.date
+            df0['days_until_holiday'] = pd.to_timedelta(df0['days_until_holiday']).dt.days
+
+            df0['route'] = le.fit_transform(df0['route'])
+            df0.drop(['departure'], inplace=True, axis=1)
+
+            shift_num = 10
             df_temp0 = copy.deepcopy(df0)
             for kan1 in range(shift_num):
                 df0 = pd.concat(
@@ -69,33 +77,34 @@ def baggage_pred_pretrained_model():
 
             df0.dropna(inplace=True)
 
-            filtered_columns_list = ['year', 'month', 'day', 'dayofweek', 'hour', 'route', 'is_holiday']
-            all_org_rows_list = filtered_columns_list + ['paxWeight']
-            for kan2 in range(shift_num):
-                filtered_columns_list_temp = [x + f'_shifted{kan2 + 1}' for x in all_org_rows_list]
-                for x in filtered_columns_list_temp:
-                    filtered_columns_list.append(x)
-            filtered_columns_list.append('paxWeight')
+            col = df0.pop('baggage')
+            df0.insert(len(df0.columns), 'baggage', col)
 
-            df1 = df0.filter(filtered_columns_list)
+            model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
+            model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
+            model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
 
-            model = keras.models.load_model('my_model.h5')
-            x_result = df1.iloc[-1, :-1].values.reshape(1, -1)
-            y_pred = model.predict(x_result.reshape((x_result.shape[0], x_result.shape[1], 1)))
+            df1 = copy.deepcopy(np.array(df0))
+            x_result = df1[-1, :-1]
+            y_pred1 = model1.predict(x_result.reshape(1,-1))
+            y_pred2 = model2.predict(x_result.reshape(1,-1))
+            x_result_final = np.concatenate((y_pred1.reshape(-1, 1), y_pred2.reshape(-1, 1)), axis=1)
+            y_pred_final = model3.predict(x_result_final.reshape(1,-1))
+
             token = api_token_handler()
             result_data = {
                 "fkFlightInformation": int(pkFlightInformation),
-                "load": float(y_pred[0][0]),
+                "load": float(y_pred_final[0][0]),
                 "flightCount": 1,
-                "flightDate": str(flightdate).split('.')[0]
+                "flightDate": str(flightdate).split('.')[0].replace('T',' ')
             }
-            api_result = requests.post(url='http://192.168.115.10:8083/api/FlightLoadEstimate/CreateFlightLoadEstimate',
+            api_result = requests.post(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/CreateFlightBaggageEstimate',
                                        json=result_data,
                                        headers={'Authorization': f'Bearer {token}',
                                                 'Content-type': 'application/json',
                                                 })
             if not json.loads(api_result.text)['success']:
-                print(f'y_pred:{y_pred} with {pkFlightInformation} did not recorded in DB.')
+                print(f'y_pred:{y_pred_final} with {pkFlightInformation} did not recorded in DB.')
         except:
             token = api_token_handler()
             result_data = {
