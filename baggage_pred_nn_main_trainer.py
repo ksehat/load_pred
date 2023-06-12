@@ -53,7 +53,7 @@ df0['days_until_holiday'] = pd.to_timedelta(df0['days_until_holiday']).dt.days
 le_route = LabelEncoder()
 df0['route'] = le_route.fit_transform(df0['route'])
 
-with open('label_encoder_baggage.pkl', 'wb') as f:
+with open('baggage_deployed_models/label_encoder_baggage.pkl', 'wb') as f:
     pickle.dump(le_route, f)
 
 df0.drop(['departure', 'paxWeight', 'payLoad'], inplace=True, axis=1)
@@ -75,7 +75,7 @@ df0.insert(len(df0.columns), 'baggage', col)
 # df1 = pf.fit_transform(df0.iloc[:,:-1])
 # df2 = np.concatenate((df1,df0.iloc[:,-1:].values), axis=1)
 df2 = copy.deepcopy(np.array(df0))
-x_train, x_test, y_train, y_test = train_test_split(df2[:,:-1], df2[:,-1], test_size=0.01, shuffle=False)
+x_train, x_test, y_train, y_test = train_test_split(df2[:,:-1], df2[:,-1], test_size=0.1, shuffle=False)
 
 # =====================================================================================================
 model1 = manual_model_dense(x_train)
@@ -144,7 +144,7 @@ for i in range(0, 1000, 100):
           len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 100))]) / len(
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
-model1.save('baggage_model1.h5')
+model1.save('baggage_deployed_models/baggage_model1.h5')
 filename = 'baggage_deployed_models/baggage_model2.sav'
 pickle.dump(model2, open(filename, 'wb'))
-model3.save('baggage_model3.h5')
+model3.save('baggage_deployed_models/baggage_model3.h5')
