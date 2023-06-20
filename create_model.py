@@ -173,30 +173,30 @@ def manual_model_dense(input_data):
     input_layer = keras.Input(shape=input_shape)
 
     x = input_layer
-    x1 = layers.Dense(20, activation="relu")(x)
-    x2 = layers.Dense(10, activation="relu")(x1)
-    x3 = layers.Dense(5, activation="relu")(x2)
+    x1 = layers.Dense(50, activation="relu")(x)
+    x2 = layers.Dense(20, activation="relu")(x1)
+    x3 = layers.Dense(10, activation="relu")(x2)
     # x4 = layers.Dense(25, activation="relu")(x3)
     # x5 = layers.Dense(5, activation="relu")(x4)
-    output_layer1 = layers.Dense(3)(x3)
+    output_layer1 = layers.Dense(5)(x3)
 
-    y = input_layer
+    y = x1
     y = layers.Dense(20, activation="relu")(y)
     y = layers.Dense(10, activation="relu")(y)
     y = layers.Dense(5, activation="relu")(y)
-    output_layer2 = layers.Dense(3)(y)
+    output_layer2 = layers.Dense(2)(y)
 
-    z = x1
-    z = layers.Dense(20, activation="relu")(z)
+    z = x2
     z = layers.Dense(10, activation="relu")(z)
     z = layers.Dense(5, activation="relu")(z)
-    output_layer3 = layers.Dense(3)(z)
+    # z = layers.Dense(5, activation="relu")(z)
+    output_layer3 = layers.Dense(1)(z)
 
-    z1 = x2
-    z1 = layers.Dense(20, activation="relu")(z1)
-    z1 = layers.Dense(10, activation="relu")(z1)
+    z1 = x3
     z1 = layers.Dense(5, activation="relu")(z1)
-    output_layer4 = layers.Dense(3)(z1)
+    # z1 = layers.Dense(5, activation="relu")(z1)
+    # z1 = layers.Dense(2, activation="relu")(z1)
+    output_layer4 = layers.Dense(1)(z1)
 
     output1 = layers.Concatenate()([output_layer1, output_layer2, output_layer3, output_layer4])
 
@@ -206,7 +206,8 @@ def manual_model_dense(input_data):
     # m1 = layers.Dropout(0.25)(m1)
     # m1 = layers.Dense(5, activation="relu")(m1)
     # m1 = layers.Flatten()(m1)
-    output_layer = layers.Dense(1)(output1)
+    output11 = layers.Dense(3)(output1)
+    output_layer = layers.Dense(1)(output11)
 
     model = keras.Model(inputs=input_layer, outputs=output_layer)
 
