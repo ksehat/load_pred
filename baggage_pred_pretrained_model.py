@@ -1,14 +1,14 @@
+import time
 import pandas as pd
 import requests
 import json
 import copy
 import pickle
 import numpy as np
-import tensorflow as tf
 import keras
-from keras import layers
 from functions import api_token_handler
 import joblib
+import schedule
 
 
 def baggage_pred_pretrained_model():
@@ -120,4 +120,13 @@ def baggage_pred_pretrained_model():
                                    })
 
 
-baggage_pred_pretrained_model()
+# use the schedule.every() method to specify the frequency and time of execution
+# for example, to run the hello function every 10 seconds
+schedule.every(30).minutes.do(baggage_pred_pretrained_model)
+
+# use a while loop to keep the program running
+while True:
+    # run all pending tasks
+    schedule.run_pending()
+    # wait for one second
+    time.sleep(1)
