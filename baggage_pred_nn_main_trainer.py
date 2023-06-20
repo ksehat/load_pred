@@ -48,9 +48,6 @@ df0.reset_index(drop=True, inplace=True)
 le_route = LabelEncoder()
 df0['route'] = le_route.fit_transform(df0['route'])
 
-with open('baggage_deployed_models/label_encoder_baggage.pkl', 'wb') as f:
-    pickle.dump(le_route, f)
-
 df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
 
 # add Gaussian noise to x column
@@ -77,10 +74,10 @@ df2 = copy.deepcopy(np.array(df0))
 x_train, x_test, y_train, y_test = train_test_split(df2[:, :-1], df2[:, -1], test_size=0.1, shuffle=False)
 # =====================================================================================================
 model1 = manual_model_dense(x_train)
-model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
                loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es1 = EarlyStopping(monitor='val_loss', mode='min', patience=50, restore_best_weights=True)
+es1 = EarlyStopping(monitor='val_loss', mode='min', patience=10, restore_best_weights=True)
 history = model1.fit(x_train, y_train,
                      validation_data=(x_test, y_test), callbacks=es1, epochs=10000, batch_size=50)
 
@@ -92,17 +89,51 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 
+model11 = keras.backend.function([model1.input], [model1.layers[-2].output])
+
+y_pred_train11 = model11([x_train])[0]
+y_pred_test11 = model11([x_test])[0]
+
 y_pred_train1 = model1.predict(x_train)
 y_pred_test1 = model1.predict(x_test)
 x_train2 = x_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 300)]
 y_train2 = y_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 300)]
+x_test2 = x_test[(abs(y_pred_test1.reshape(-1) - y_test) >= 300)]
+y_test2 = y_test[(abs(y_pred_test1.reshape(-1) - y_test) >= 300)]
 # =====================================================================================================
-model2 = GradientBoostingRegressor(max_depth=5)
-model2.fit(x_train2, y_train2)
+input_shape_model2 = x_train2.shape[1]
+input_layer_model2 = keras.Input(shape=input_shape_model2)
+x_model2 = input_layer_model2
+x1_model2 = layers.Dense(20, activation="relu")(x_model2)
+x2_model2 = layers.Dense(10, activation="relu")(x1_model2)
+# x3_model2 = layers.Dense(25, activation="relu")(x2_model2)
+x4_model2 = layers.Dense(5, activation="relu")(x2_model2)
+output_layer_model2 = layers.Dense(1)(x4_model2)
+model2 = keras.Model(inputs=input_layer_model2, outputs=output_layer_model2)
+model2.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
+es_model2 = EarlyStopping(monitor='val_loss', mode='min', patience=5, restore_best_weights=True)
+history = model2.fit(x_train2, y_train2,
+                     validation_data=(x_test2, y_test2), callbacks=es_model2, epochs=10000, batch_size=10)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Test'], loc='upper left')
+plt.show()
+
+model22 = keras.backend.function([model2.input], [model2.layers[-2].output])
+
+y_pred_train22 = model22([x_train])[0]
+y_pred_test22 = model22([x_test])[0]
+
 y_pred_train2 = model2.predict(x_train)
 y_pred_test2 = model2.predict(x_test)
-x_train3 = np.concatenate((y_pred_train1.reshape(-1, 1), y_pred_train2.reshape(-1, 1)), axis=1)
-x_test3 = np.concatenate((y_pred_test1.reshape(-1, 1), y_pred_test2.reshape(-1, 1)), axis=1)
+# x_train3 = np.concatenate((y_pred_train1.reshape(-1, 1), y_pred_train2.reshape(-1, 1)), axis=1)
+# x_test3 = np.concatenate((y_pred_test1.reshape(-1, 1), y_pred_test2.reshape(-1, 1)), axis=1)
+x_train3 = np.concatenate((y_pred_train11, y_pred_train22), axis=1)
+x_test3 = np.concatenate((y_pred_test11, y_pred_test22), axis=1)
 # =====================================================================================================
 input_shape = x_train3.shape[1]
 input_layer = keras.Input(shape=input_shape)
@@ -130,7 +161,6 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 # =====================================================================================================
-
 y_pred = model3.predict(x_test3).reshape(1, -1)
 y_actual = y_test.reshape(1, -1)
 
@@ -142,6 +172,9 @@ for i in range(0, 1000, 100):
           len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 100))]) / len(
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
+# =====================================================================================================
+with open('baggage_deployed_models/label_encoder_baggage.pkl', 'wb') as f:
+    pickle.dump(le_route, f)
 model1.save('baggage_deployed_models/baggage_model1.h5')
 model1.save_weights('baggage_deployed_models/baggage_model1_weights.h5')
 filename = 'baggage_deployed_models/baggage_model2.sav'
