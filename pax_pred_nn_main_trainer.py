@@ -15,9 +15,12 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from create_model import manual_model_dense
 from functions import api_token_handler
+from keras.callbacks import Callback
+from early_stopping_multiple import EarlyStoppingMultiple
 
 # physical_devices = tf.config.list_physical_devices("GPU")
 # tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
 
 # Load your data into a DataFrame
 token = api_token_handler()
@@ -28,15 +31,13 @@ df0 = pd.DataFrame(
                                      }
                             ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
 
-df0.drop(['pkFlightInformation', 'baggage', 'payLoad'], axis=1, inplace=True)
+df0.drop(['pkFlightInformation', 'baggage'], axis=1, inplace=True)
 
 df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
 df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
 df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
 df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
 df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
-df0['is_holiday'][(np.array(pd.DatetimeIndex(df0['departure']).day_name()) == 'Friday')] = 1
-df0['is_holiday'][(np.array(pd.DatetimeIndex(df0['departure']).day_name()) == 'Thursday')] = 1
 
 df0['departure'] = pd.to_datetime(df0['departure'])
 df0.sort_values(by='departure', inplace=True)
@@ -48,9 +49,6 @@ df0['days_until_holiday'] = pd.to_timedelta(df0['days_until_holiday']).dt.days
 
 le_route = LabelEncoder()
 df0['route'] = le_route.fit_transform(df0['route'])
-
-with open('pax_deployed_models/label_encoder_pax.pkl', 'wb') as f:
-    pickle.dump(le_route, f)
 
 df0.drop(['departure'], inplace=True, axis=1)
 
@@ -74,7 +72,7 @@ model1 = manual_model_dense(x_train)
 model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es1 = EarlyStopping(monitor='loss', mode='min', patience=10, restore_best_weights=True)
+es1 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=10, fav_val_loss=10)
 history = model1.fit(x_train, y_train,
                     validation_data=(x_test, y_test), callbacks=es1, epochs=10000, batch_size=50)
 
@@ -136,6 +134,8 @@ for i in range(0, 10, 1):
           len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 1))]) / len(
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
+with open('pax_deployed_models/label_encoder_pax.pkl', 'wb') as f:
+    pickle.dump(le_route, f)
 model1.save('pax_deployed_models/pax_model1.h5')
 model1.save_weights('pax_deployed_models/pax_model1_weights.h5')
 filename = 'pax_deployed_models/pax_model2.sav'
