@@ -9,7 +9,22 @@ import keras
 from functions import api_token_handler
 import joblib
 import schedule
+from joblib import load
 
+def apply_label_dict(column):
+    label_dict = load('baggage_deployed_models/label_dict.joblib')
+    encoded_column = []
+    for route in column:
+        origin, destination = route.split('>')
+        reverse_route = f'{destination}>{origin}'
+        if route in label_dict:
+            encoded_column.append(label_dict[route])
+        elif reverse_route in label_dict:
+            encoded_column.append(-label_dict[reverse_route])
+        else:
+            encoded_column.append(max(list(label_dict.values())))
+ # or any other default value
+    return encoded_column
 
 def baggage_pred_pretrained_model():
     token = api_token_handler()
@@ -32,9 +47,6 @@ def baggage_pred_pretrained_model():
     df_past.sort_values(by='departure', inplace=True)
     df_past.reset_index(drop=True, inplace=True)
 
-    with open('baggage_deployed_models\label_encoder_baggage.pkl', 'rb') as f:
-        le = pickle.load(f)
-
     df_future['route'] = df_future['route'].apply(lambda x: x.replace("-", ">"))
     df_past['route'] = df_past['route'].apply(lambda x: x.replace("-", ">"))
 
@@ -42,12 +54,12 @@ def baggage_pred_pretrained_model():
         try:
             pkFlightInformation = df_future.iloc[i:i + 1, :]['pkFlightInformation'].values[0]
             flightdate = df_future.iloc[i:i + 1, :]['departure'].values[0]
+            sales_weight = df_future.iloc[i:i + 1, :]['salesWeight'].values[0]
 
             df0 = pd.concat([df_past, df_future.iloc[i:i + 1, :]], axis=0, ignore_index=True)
-            df0.drop(['pkFlightInformation'], axis=1, inplace=True)
+            df0.drop(['pkFlightInformation', 'salesWeight'], axis=1, inplace=True)
 
-            df0['route'] = df0['route'].apply(
-                lambda x: le.transform([x])[0] if x in le.classes_ else len(le.classes_) + 1)
+            df0['route'] = apply_label_dict(df0['route'])
 
             df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
             df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
@@ -60,7 +72,6 @@ def baggage_pred_pretrained_model():
             df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
             df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
 
-            df0['route'] = le.fit_transform(df0['route'])
             df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
 
             col = df0.pop('baggage')
@@ -73,6 +84,7 @@ def baggage_pred_pretrained_model():
                     [df0, df_temp0.groupby('route').shift(periods=kan1 + 1).add_suffix(f'_shifted{kan1 + 1}')],
                     axis=1)
 
+            df0.dropna(inplace=True)
             df0.drop('baggage', inplace=True, axis=1)
             df1 = copy.deepcopy(np.array(df0))
 
@@ -94,7 +106,8 @@ def baggage_pred_pretrained_model():
                     "fkFlightInformation": int(pkFlightInformation),
                     "load": float(y_pred_final[0][0]),
                     "flightCount": 1,
-                    "flightDate": str(flightdate).split('.')[0].replace('T', ' ')
+                    "flightDate": str(flightdate).split('.')[0].replace('T', ' '),
+                    "salesWeight":float(sales_weight)
                 }
                 api_result = requests.post(
                     url='http://192.168.115.10:8081/api/FlightBaggageEstimate/CreateFlightBaggageEstimate',
@@ -130,3 +143,4 @@ while True:
     schedule.run_pending()
     # wait for one second
     time.sleep(1)
+# baggage_pred_pretrained_model()
