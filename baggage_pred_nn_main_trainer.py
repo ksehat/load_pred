@@ -4,6 +4,8 @@ import json
 import numpy as np
 import requests
 import pandas as pd
+from collections import defaultdict
+from joblib import dump
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras
@@ -15,9 +17,29 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from create_model import manual_model_dense
 from functions import api_token_handler
+from early_stopping_multiple import EarlyStoppingMultiple
 
 # physical_devices = tf.config.list_physical_devices("GPU")
 # tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
+def custom_label_encode(column):
+    label_dict = defaultdict(int)
+    label = 1
+    encoded_column = []
+    for route in column:
+        origin, destination = route.split('>')
+        reverse_route = f'{destination}>{origin}'
+        if route in label_dict:
+            encoded_column.append(label_dict[route])
+        elif reverse_route in label_dict:
+            encoded_column.append(-label_dict[reverse_route])
+        else:
+            label_dict[route] = label
+            encoded_column.append(label)
+            label += 1
+    # Save the label_dict to a file
+    dump(label_dict, 'baggage_deployed_models/label_dict.joblib')
+    return encoded_column
 
 # Load your data into a DataFrame
 token = api_token_handler()
@@ -45,11 +67,8 @@ df0['departure'] = pd.to_datetime(df0['departure'])
 df0.sort_values(by='departure', inplace=True)
 df0.reset_index(drop=True, inplace=True)
 
-le_route = LabelEncoder()
-df0['route'] = le_route.fit_transform(df0['route'])
-
-with open('baggage_deployed_models/label_encoder_baggage.pkl', 'wb') as f:
-    pickle.dump(le_route, f)
+# Apply the function to the route column and assign it to a new column
+df0['route'] = custom_label_encode(df0['route'])
 
 df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
 
@@ -80,7 +99,7 @@ model1 = manual_model_dense(x_train)
 model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
                loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es1 = EarlyStopping(monitor='val_loss', mode='min', patience=50, restore_best_weights=True)
+es1 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=186, fav_val_loss=185)
 history = model1.fit(x_train, y_train,
                      validation_data=(x_test, y_test), callbacks=es1, epochs=10000, batch_size=50)
 
@@ -118,7 +137,7 @@ model3 = keras.Model(inputs=input_layer, outputs=output_layer)
 model3.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
                loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es3 = EarlyStopping(monitor='val_loss', mode='min', patience=20, restore_best_weights=True)
+es3 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=165, fav_val_loss=180)
 history = model3.fit(x_train3, y_train,
                      validation_data=(x_test3, y_test), callbacks=es3, epochs=10000, batch_size=100)
 
@@ -142,6 +161,8 @@ for i in range(0, 1000, 100):
           len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 100))]) / len(
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
+
+
 model1.save('baggage_deployed_models/baggage_model1.h5')
 model1.save_weights('baggage_deployed_models/baggage_model1_weights.h5')
 filename = 'baggage_deployed_models/baggage_model2.sav'
