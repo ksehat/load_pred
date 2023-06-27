@@ -5,19 +5,18 @@ import numpy as np
 import requests
 import pandas as pd
 from collections import defaultdict
+import joblib
 from joblib import dump
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras
 from keras import layers
-from keras.callbacks import EarlyStopping
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from create_model import manual_model_dense
 from functions import api_token_handler
 from early_stopping_multiple import EarlyStoppingMultiple
+from save_training_weights import SaveWeights
 
 # physical_devices = tf.config.list_physical_devices("GPU")
 # tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -93,15 +92,16 @@ df0.insert(len(df0.columns), 'baggage', col)
 # df1 = pf.fit_transform(df0.iloc[:,:-1])
 # df2 = np.concatenate((df1,df0.iloc[:,-1:].values), axis=1)
 df2 = copy.deepcopy(np.array(df0))
-x_train, x_test, y_train, y_test = train_test_split(df2[:, :-1], df2[:, -1], test_size=0.1, shuffle=False)
+x_train, x_test, y_train, y_test = train_test_split(df2[:21944, :-1], df2[:21944, -1], test_size=0.001, shuffle=False)
 # =====================================================================================================
 model1 = manual_model_dense(x_train)
+# model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
 model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
                loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es1 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=186, fav_val_loss=185)
 history = model1.fit(x_train, y_train,
-                     validation_data=(x_test, y_test), callbacks=es1, epochs=10000, batch_size=50)
+                     validation_data=(x_test, y_test), callbacks=[SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights/model1/')], epochs=10000, batch_size=50)
+model1.save('baggage_deployed_models/baggage_model1.h5')
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -110,6 +110,9 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
+
+model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
+model1.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model1/weights_epoch2503.h5')
 
 y_pred_train1 = model1.predict(x_train)
 y_pred_test1 = model1.predict(x_test)
@@ -122,6 +125,11 @@ y_pred_train2 = model2.predict(x_train)
 y_pred_test2 = model2.predict(x_test)
 x_train3 = np.concatenate((y_pred_train1.reshape(-1, 1), y_pred_train2.reshape(-1, 1)), axis=1)
 x_test3 = np.concatenate((y_pred_test1.reshape(-1, 1), y_pred_test2.reshape(-1, 1)), axis=1)
+
+filename = 'baggage_deployed_models/baggage_model2.sav'
+pickle.dump(model2, open(filename, 'wb'))
+
+model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
 # =====================================================================================================
 input_shape = x_train3.shape[1]
 input_layer = keras.Input(shape=input_shape)
@@ -137,9 +145,9 @@ model3 = keras.Model(inputs=input_layer, outputs=output_layer)
 model3.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
                loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es3 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=165, fav_val_loss=180)
 history = model3.fit(x_train3, y_train,
-                     validation_data=(x_test3, y_test), callbacks=es3, epochs=10000, batch_size=100)
+                     validation_data=(x_test3, y_test), callbacks=[SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights/model3/')], epochs=10000, batch_size=100)
+model3.save('baggage_deployed_models/baggage_model3.h5')
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -148,8 +156,10 @@ plt.ylabel('Loss')
 plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
-# =====================================================================================================
 
+model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
+model3.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model3/weights_epoch26.h5')
+# =====================================================================================================
 y_pred = model3.predict(x_test3).reshape(1, -1)
 y_actual = y_test.reshape(1, -1)
 
@@ -163,9 +173,14 @@ for i in range(0, 1000, 100):
 print(np.mean(np.abs(df_result['error'])))
 
 
-model1.save('baggage_deployed_models/baggage_model1.h5')
-model1.save_weights('baggage_deployed_models/baggage_model1_weights.h5')
-filename = 'baggage_deployed_models/baggage_model2.sav'
-pickle.dump(model2, open(filename, 'wb'))
-model3.save('baggage_deployed_models/baggage_model3.h5')
-model3.save_weights('baggage_deployed_models/baggage_model3_weights.h5')
+from sklearn.metrics import mean_absolute_error as mae
+
+x_val = df2[:21944, :-1]
+y_true = df2[:21944, -1]
+y_pred1 = model1.predict(x_val)
+y_pred2 = model2.predict(x_val)
+x_val_final = np.concatenate((y_pred1.reshape(-1, 1),y_pred2.reshape(-1, 1)), axis=1)
+y_pred_final = model3.predict(x_val_final)
+
+error = mae(y_true, y_pred_final)
+print(error)
