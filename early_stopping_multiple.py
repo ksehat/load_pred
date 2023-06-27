@@ -1,4 +1,5 @@
 from keras.callbacks import Callback
+import keyboard
 class EarlyStoppingMultiple(Callback):
     def __init__(self, monitor1='loss', monitor2='val_loss', patience=0, fav_loss=1.9, fav_val_loss=1.82):
         super(EarlyStoppingMultiple, self).__init__()
@@ -14,6 +15,10 @@ class EarlyStoppingMultiple(Callback):
     def on_epoch_end(self, epoch, logs=None):
         current_loss = logs.get(self.monitor1)
         current_val_loss = logs.get(self.monitor2)
+        # Stop training when the q key is pressed
+        if keyboard.is_pressed('q'):
+            print("Stopping training")
+            self.model.stop_training = True
         try:
             if current_loss < self.fav_loss and current_val_loss < self.fav_val_loss:
                 self.best_loss = current_loss
