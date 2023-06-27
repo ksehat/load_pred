@@ -4,6 +4,8 @@ import json
 import numpy as np
 import requests
 import pandas as pd
+from collections import defaultdict
+from joblib import dump
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras
@@ -21,6 +23,24 @@ from early_stopping_multiple import EarlyStoppingMultiple
 # physical_devices = tf.config.list_physical_devices("GPU")
 # tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
+def custom_label_encode(column):
+    label_dict = defaultdict(int)
+    label = 1
+    encoded_column = []
+    for route in column:
+        origin, destination = route.split('>')
+        reverse_route = f'{destination}>{origin}'
+        if route in label_dict:
+            encoded_column.append(label_dict[route])
+        elif reverse_route in label_dict:
+            encoded_column.append(-label_dict[reverse_route])
+        else:
+            label_dict[route] = label
+            encoded_column.append(label)
+            label += 1
+    # Save the label_dict to a file
+    dump(label_dict, 'pax_deployed_models/label_dict.joblib')
+    return encoded_column
 
 # Load your data into a DataFrame
 token = api_token_handler()
@@ -38,24 +58,20 @@ df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
 df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
 df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
 df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
+df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
 
 df0['departure'] = pd.to_datetime(df0['departure'])
 df0.sort_values(by='departure', inplace=True)
 df0.reset_index(drop=True, inplace=True)
 
-holidays = df0.loc[df0['is_holiday'] == 1, 'departure']
-df0['days_until_holiday'] = holidays.reindex(df0.index, method='bfill').dt.date - df0['departure'].dt.date
-df0['days_until_holiday'] = pd.to_timedelta(df0['days_until_holiday']).dt.days
-
-le_route = LabelEncoder()
-df0['route'] = le_route.fit_transform(df0['route'])
+df0['route'] = custom_label_encode(df0['route'])
 
 df0.drop(['departure'], inplace=True, axis=1)
 
 col = df0.pop('paxWeight')
 df0.insert(len(df0.columns), 'paxWeight', col)
 
-shift_num = 10
+shift_num = 15
 df_temp0 = copy.deepcopy(df0)
 for i in range(shift_num):
     df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
@@ -69,10 +85,10 @@ df2 = copy.deepcopy(np.array(df0))
 x_train, x_test, y_train, y_test = train_test_split(df2[:,:-1], df2[:,-1], test_size=0.1, shuffle=False)
 # =====================================================================================================
 model1 = manual_model_dense(x_train)
-model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
+model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es1 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=10, fav_val_loss=10)
+es1 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=1.9, fav_val_loss=1.9)
 history = model1.fit(x_train, y_train,
                     validation_data=(x_test, y_test), callbacks=es1, epochs=10000, batch_size=50)
 
@@ -99,9 +115,9 @@ x_test3 = np.concatenate((y_pred_test1.reshape(-1,1),y_pred_test2.reshape(-1,1))
 input_shape = x_train3.shape[1]
 input_layer = keras.Input(shape=input_shape)
 x = input_layer
-x1 = layers.Dense(20, activation="relu")(x)
-x2 = layers.Dense(10, activation="relu")(x1)
-x3 = layers.Dense(5, activation="relu")(x2)
+x1 = layers.Dense(5, activation="relu")(x)
+x2 = layers.Dense(3, activation="relu")(x1)
+x3 = layers.Dense(2, activation="relu")(x2)
 # x4 = layers.Dense(5, activation="relu")(x3)
 # x5 = layers.Dense(5, activation="relu")(x4)
 # output_layer1 = layers.Dense(3)(x5)
@@ -110,7 +126,7 @@ model3 = keras.Model(inputs=input_layer, outputs=output_layer)
 model3.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
               loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
-es3 = EarlyStopping(monitor='loss', mode='min', patience=10, restore_best_weights=True)
+es3 = EarlyStoppingMultiple(monitor1='loss', monitor2='val_loss', patience=10, fav_loss=1.8, fav_val_loss=1.8)
 history = model3.fit(x_train3, y_train,
                     validation_data=(x_test3, y_test), callbacks=es3, epochs=10000, batch_size=100)
 
@@ -134,8 +150,7 @@ for i in range(0, 10, 1):
           len(abs(df_result['error'])[((abs(df_result['error']) >= i) & (abs(df_result['error']) < i + 1))]) / len(
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
-with open('pax_deployed_models/label_encoder_pax.pkl', 'wb') as f:
-    pickle.dump(le_route, f)
+
 model1.save('pax_deployed_models/pax_model1.h5')
 model1.save_weights('pax_deployed_models/pax_model1_weights.h5')
 filename = 'pax_deployed_models/pax_model2.sav'
