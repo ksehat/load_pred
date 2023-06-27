@@ -89,10 +89,12 @@ def baggage_pred_pretrained_model():
             df1 = copy.deepcopy(np.array(df0))
 
             model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-            model1.load_weights('baggage_deployed_models/baggage_model1_weights.h5')
+            model1.load_weights(
+                'C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model1/weights_epoch2503.h5')
             model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
             model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
-            model3.load_weights('baggage_deployed_models/baggage_model3_weights.h5')
+            model3.load_weights(
+                'C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model3/weights_epoch26.h5')
 
             x_result = df1[-1].reshape(1, -1)
             y_pred1 = model1.predict(x_result)
@@ -135,12 +137,12 @@ def baggage_pred_pretrained_model():
 
 # use the schedule.every() method to specify the frequency and time of execution
 # for example, to run the hello function every 10 seconds
-schedule.every(30).minutes.do(baggage_pred_pretrained_model)
-
-# use a while loop to keep the program running
-while True:
-    # run all pending tasks
-    schedule.run_pending()
-    # wait for one second
-    time.sleep(1)
-# baggage_pred_pretrained_model()
+# schedule.every(30).minutes.do(baggage_pred_pretrained_model)
+#
+# # use a while loop to keep the program running
+# while True:
+#     # run all pending tasks
+#     schedule.run_pending()
+#     # wait for one second
+#     time.sleep(1)
+baggage_pred_pretrained_model()
