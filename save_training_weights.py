@@ -8,6 +8,7 @@ class SaveWeights(Callback):
         self.log_dir = log_dir
         self.start_save = True
         os.makedirs(log_dir, exist_ok=True)
+        self.delete_files_in_dir()
 
     def on_epoch_end(self, epoch, logs=None):
         if keyboard.is_pressed('q'):
