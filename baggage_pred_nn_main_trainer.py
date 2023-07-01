@@ -18,8 +18,15 @@ from functions import api_token_handler
 from early_stopping_multiple import EarlyStoppingMultiple
 from save_training_weights import SaveWeights
 
+
 # physical_devices = tf.config.list_physical_devices("GPU")
 # tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
+
+def get_last_5(df, reverse_route, date):
+    mask = (df['route'] == reverse_route) & (df['departure'] < date)
+    return df.loc[mask, 'baggage'].tail(5).tolist()
+
 
 def custom_label_encode(column):
     label_dict = defaultdict(int)
@@ -40,67 +47,78 @@ def custom_label_encode(column):
     dump(label_dict, 'baggage_deployed_models/label_dict.joblib')
     return encoded_column
 
+
 # Load your data into a DataFrame
-token = api_token_handler()
-df0 = pd.DataFrame(
-    json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
-                            headers={'Authorization': f'Bearer {token}',
-                                     'Content-type': 'application/json',
-                                     }
-                            ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
-
-df0.drop('pkFlightInformation', axis=1, inplace=True)
-
-df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
-df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
-df0['baggage'] = df0['baggage'].astype(float)
-
-df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
-df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
-df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
-df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
-df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
-df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
-
-df0['departure'] = pd.to_datetime(df0['departure'])
-df0.sort_values(by='departure', inplace=True)
-df0.reset_index(drop=True, inplace=True)
-
-# Apply the function to the route column and assign it to a new column
-df0['route'] = custom_label_encode(df0['route'])
-
-df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
-
-# add Gaussian noise to x column
-# noise = np.random.normal(0, 1, len(df0))  # change mean and std as needed
-# df0["paxWeight"] = df0["paxWeight"] + noise
-
-col = df0.pop('baggage')
-df0.insert(len(df0.columns), 'baggage', col)
-
-shift_num = 15
-df_temp0 = copy.deepcopy(df0)
-for i in range(shift_num):
-    df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
-
-df0.dropna(inplace=True)
-
-col = df0.pop('baggage')
-df0.insert(len(df0.columns), 'baggage', col)
-
-# pf = PolynomialFeatures(degree=2)
-# df1 = pf.fit_transform(df0.iloc[:,:-1])
-# df2 = np.concatenate((df1,df0.iloc[:,-1:].values), axis=1)
-df2 = copy.deepcopy(np.array(df0))
-x_train, x_test, y_train, y_test = train_test_split(df2[:21944, :-1], df2[:21944, -1], test_size=0.001, shuffle=False)
+# token = api_token_handler()
+# df0 = pd.DataFrame(
+#     json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
+#                             headers={'Authorization': f'Bearer {token}',
+#                                      'Content-type': 'application/json',
+#                                      }
+#                             ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
+# df0 = pd.read_csv('df0.csv')
+# df0 = df0.iloc[:, 1:]
+# df0.drop(['pkFlightInformation'], axis=1, inplace=True)
+#
+# df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
+# df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
+# df0['baggage'] = df0['baggage'].astype(float)
+#
+# df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
+# df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
+# df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
+# df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
+# df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
+# df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
+#
+# df0['departure'] = pd.to_datetime(df0['departure'])
+# df0.sort_values(by='departure', inplace=True)
+# df0.reset_index(drop=True, inplace=True)
+#
+# # Apply the function to the route column and assign it to a new column
+# df0['route'] = custom_label_encode(df0['route'])
+#
+# # create a function to get the last 5 values of the baggage column for the reverse route
+# last_5_values = df0.apply(lambda x: get_last_5(df0, -x['route'], x['departure']), axis=1)
+# for kan4 in range(5):
+#     df0[f'reverse_baggage_{kan4 + 1}'] = last_5_values.apply(lambda x: x[kan4] if len(x) > kan4 else None)
+#
+# df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
+#
+# col = df0.pop('baggage')
+# df0.insert(len(df0.columns), 'baggage', col)
+#
+# shift_num = 15
+# df_temp0 = copy.deepcopy(df0)
+# for i in range(shift_num):
+#     df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
+#
+# df0.dropna(inplace=True)
+#
+# col = df0.pop('baggage')
+# df0.insert(len(df0.columns), 'baggage', col)
+#
+# df2 = copy.deepcopy(np.array(df0))
+# x_train, x_test, y_train, y_test = train_test_split(df2[:21720, :-1], df2[:21720, -1], test_size=0.001, shuffle=False)
+# np.savetxt('x_train.csv', x_train, delimiter=',')
+# np.savetxt('x_test.csv', x_test, delimiter=',')
+# np.savetxt('y_train.csv', y_train, delimiter=',')
+# np.savetxt('y_test.csv', y_test, delimiter=',')
+# =====================================================================================================
+x_train = np.loadtxt('x_train.csv', delimiter=',')
+x_test = np.loadtxt('x_test.csv', delimiter=',')
+y_train = np.loadtxt('y_train.csv', delimiter=',')
+y_test = np.loadtxt('y_test.csv', delimiter=',')
 # =====================================================================================================
 model1 = manual_model_dense(x_train)
 # model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-6),
                loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
 history = model1.fit(x_train, y_train,
-                     validation_data=(x_test, y_test), callbacks=[SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights/model1/')], epochs=10000, batch_size=50)
+                     validation_data=(x_test, y_test), callbacks=[
+        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights/model1/')], epochs=10000,
+                     batch_size=50)
 model1.save('baggage_deployed_models/baggage_model1.h5')
 
 plt.plot(history.history['loss'])
@@ -112,7 +130,7 @@ plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 
 model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-model1.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model1/weights_epoch2503.h5')
+model1.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model1/weights_epoch1168.h5')
 
 y_pred_train1 = model1.predict(x_train)
 y_pred_test1 = model1.predict(x_test)
@@ -146,7 +164,9 @@ model3.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
                loss=tf.keras.losses.MeanAbsoluteError(), metrics='mae')
 
 history = model3.fit(x_train3, y_train,
-                     validation_data=(x_test3, y_test), callbacks=[SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights/model3/')], epochs=10000, batch_size=100)
+                     validation_data=(x_test3, y_test), callbacks=[
+        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights/model3/')], epochs=10000,
+                     batch_size=100)
 model3.save('baggage_deployed_models/baggage_model3.h5')
 
 plt.plot(history.history['loss'])
@@ -158,7 +178,7 @@ plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 
 model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
-model3.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model3/weights_epoch26.h5')
+model3.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model3/weights_epoch93.h5')
 # =====================================================================================================
 y_pred = model3.predict(x_test3).reshape(1, -1)
 y_actual = y_test.reshape(1, -1)
@@ -172,14 +192,13 @@ for i in range(0, 1000, 100):
               df_result['error']))
 print(np.mean(np.abs(df_result['error'])))
 
-
 from sklearn.metrics import mean_absolute_error as mae
 
 x_val = df2[:21944, :-1]
 y_true = df2[:21944, -1]
 y_pred1 = model1.predict(x_val)
 y_pred2 = model2.predict(x_val)
-x_val_final = np.concatenate((y_pred1.reshape(-1, 1),y_pred2.reshape(-1, 1)), axis=1)
+x_val_final = np.concatenate((y_pred1.reshape(-1, 1), y_pred2.reshape(-1, 1)), axis=1)
 y_pred_final = model3.predict(x_val_final)
 
 error = mae(y_true, y_pred_final)
