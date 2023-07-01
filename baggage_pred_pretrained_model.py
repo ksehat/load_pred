@@ -11,6 +11,7 @@ import joblib
 import schedule
 from joblib import load
 
+
 def apply_label_dict(column):
     label_dict = load('baggage_deployed_models/label_dict.joblib')
     encoded_column = []
@@ -23,8 +24,14 @@ def apply_label_dict(column):
             encoded_column.append(-label_dict[reverse_route])
         else:
             encoded_column.append(max(list(label_dict.values())))
- # or any other default value
+    # or any other default value
     return encoded_column
+
+
+def get_last_5(df, reverse_route, date):
+    mask = (df['route'] == reverse_route) & (df['departure'] < date)
+    return df.loc[mask, 'baggage'].tail(5).tolist()
+
 
 def baggage_pred_pretrained_model():
     token = api_token_handler()
@@ -72,6 +79,11 @@ def baggage_pred_pretrained_model():
             df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
             df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
 
+            # create a function to get the last 5 values of the baggage column for the reverse route
+            last_5_values = df0.apply(lambda x: get_last_5(df0, -x['route'], x['departure']), axis=1)
+            for kan4 in range(5):
+                df0[f'reverse_baggage_{kan4 + 1}'] = last_5_values.apply(lambda x: x[kan4] if len(x) > kan4 else None)
+
             df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
 
             col = df0.pop('baggage')
@@ -84,17 +96,17 @@ def baggage_pred_pretrained_model():
                     [df0, df_temp0.groupby('route').shift(periods=kan1 + 1).add_suffix(f'_shifted{kan1 + 1}')],
                     axis=1)
 
-            df0.dropna(inplace=True)
             df0.drop('baggage', inplace=True, axis=1)
+            df0.dropna(inplace=True)
             df1 = copy.deepcopy(np.array(df0))
 
             model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
             model1.load_weights(
-                'C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model1/weights_epoch2503.h5')
+                'C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model1/weights_epoch1168.h5')
             model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
             model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
             model3.load_weights(
-                'C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model3/weights_epoch26.h5')
+                'C:/Users\Administrator\Desktop\Projects\member_pred/training_weights\model3/weights_epoch93.h5')
 
             x_result = df1[-1].reshape(1, -1)
             y_pred1 = model1.predict(x_result)
@@ -103,13 +115,14 @@ def baggage_pred_pretrained_model():
             y_pred_final = model3.predict(x_result_final.reshape(1, -1))
 
             if y_pred_final[0][0] >= 100:
+                print(y_pred_final[0][0])
                 token = api_token_handler()
                 result_data = {
                     "fkFlightInformation": int(pkFlightInformation),
                     "load": float(y_pred_final[0][0]),
                     "flightCount": 1,
                     "flightDate": str(flightdate).split('.')[0].replace('T', ' '),
-                    "salesWeight":float(sales_weight)
+                    "salesWeight": float(sales_weight)
                 }
                 api_result = requests.post(
                     url='http://192.168.115.10:8081/api/FlightBaggageEstimate/CreateFlightBaggageEstimate',
@@ -133,16 +146,16 @@ def baggage_pred_pretrained_model():
                           headers={'Authorization': f'Bearer {token}',
                                    'Content-type': 'application/json',
                                    })
-
+    print('Prediction job is done.')
 
 # use the schedule.every() method to specify the frequency and time of execution
 # for example, to run the hello function every 10 seconds
-# schedule.every(30).minutes.do(baggage_pred_pretrained_model)
-#
-# # use a while loop to keep the program running
-# while True:
-#     # run all pending tasks
-#     schedule.run_pending()
-#     # wait for one second
-#     time.sleep(1)
-baggage_pred_pretrained_model()
+schedule.every(30).minutes.do(baggage_pred_pretrained_model)
+
+# use a while loop to keep the program running
+while True:
+    # run all pending tasks
+    schedule.run_pending()
+    # wait for one second
+    time.sleep(1)
+# baggage_pred_pretrained_model()
