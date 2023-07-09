@@ -50,6 +50,8 @@ def pax_pred_pretrained_model(who_is_calling=None):
 
     df_past.sort_values(by='departure', inplace=True)
     df_past.reset_index(drop=True, inplace=True)
+    df_future.sort_values(by='departure', inplace=True)
+    df_future.reset_index(drop=True, inplace=True)
 
     df_future['route'] = df_future['route'].apply(lambda x: x.replace("-", ">"))
     df_past['route'] = df_past['route'].apply(lambda x: x.replace("-", ">"))
@@ -109,7 +111,9 @@ def pax_pred_pretrained_model(who_is_calling=None):
                 y_pred1_past = model1.predict(x_result_past)
                 y_pred2_past = model2.predict(x_result_past)
                 x_result_final_past = np.concatenate((y_pred1_past.reshape(-1, 1), y_pred2_past.reshape(-1, 1)), axis=1)
-                df0['pax_train'] = model3.predict(x_result_final_past)
+                df_past2 = copy.deepcopy(df_past)
+                df_past2['pax_train'] = model3.predict(x_result_final_past)
+                df0['baggage'] = df_past['baggage']
                 return df0['pax_train']
 
             x_result = df1[-1].reshape(1, -1)

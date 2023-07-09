@@ -17,6 +17,9 @@ from create_model import manual_model_dense
 from functions import api_token_handler
 from early_stopping_multiple import EarlyStoppingMultiple
 from save_training_weights import SaveWeights
+from sklearn.neighbors import KDTree
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 # physical_devices = tf.config.list_physical_devices("GPU")
@@ -44,7 +47,7 @@ def custom_label_encode(column):
             encoded_column.append(label)
             label += 1
     # Save the label_dict to a file
-    dump(label_dict, 'baggage_deployed_models/label_dict.joblib')
+    # dump(label_dict, 'baggage_deployed_models/label_dict.joblib')
     return encoded_column
 
 
@@ -97,31 +100,74 @@ df0.dropna(inplace=True)
 col = df0.pop('baggage')
 df0.insert(len(df0.columns), 'baggage', col)
 
-df2 = copy.deepcopy(np.array(df0))
+df1 = copy.deepcopy(df0)
 
-x_train = df2[:-2, :-1]
-x_test = df2[-2:, :-1]
-y_train = df2[:-2, -1]
-y_test = df2[-2:, -1]
+n = 10  # number of similar rows to find
+similarity_columns = list(df1.columns)[:-1]
+df1_np = df1[similarity_columns].to_numpy()
+
+# Find the n most similar rows for each row
+most_similar_rows = []
+for i in range(n + 1, len(df1)):
+    # Calculate the cosine similarity matrix for rows before the current row
+    if i >= 100:
+        similarity_matrix = cosine_similarity(df1[similarity_columns].iloc[i - 100:i + 1])
+    else:
+        similarity_matrix = cosine_similarity(df1[similarity_columns].iloc[:i + 1])
+
+    # Find the n most similar rows
+    row_similarity = similarity_matrix[-1]
+    most_similar_indices = row_similarity.argsort()[-n:][::-1]
+    most_similar_rows.append(df1.iloc[most_similar_indices,-1:].stack().to_frame().reset_index(drop=True).T)
+
+# # Find the n most similar rows for each row
+# most_similar_rows = []
+# for i in range(n + 1, len(df1)):
+#     # Build a KDTree with the rows before the current row
+#     if i >= 100:
+#         tree = KDTree(df1_np[i - 100:i + 1])
+#     else:
+#         tree = KDTree(df1_np[:i + 1])
+#
+#     # Find the n most similar rows
+#     dist, ind = tree.query(df1_np[i:i + 1], k=n + 1)
+#     most_similar_indices = ind[0][1:]
+#     most_similar_rows.append(df1.iloc[most_similar_indices,-1:].mul(dist[0][1:], axis=0).stack().to_frame().reset_index(drop=True).T)
+
+# Create a new dataframe with the most similar rows as new columns
+arr1 = np.concatenate((np.array(most_similar_rows).squeeze(), df1.to_numpy()[n + 1:, -1].reshape(-1, 1)),
+    axis=1)
+
+arr2 = copy.deepcopy(np.array(df1))
+
+ss = StandardScaler()
+arr1 = ss.fit_transform(arr2[:, :-1])
+arr2 = np.concatenate((arr1, arr2[:, -1].reshape(-1, 1)), axis=1)
+
+x_train = arr2[:22000 - 300, :-1]
+x_test = arr2[22000 - 300:22000, :-1]
+y_train = arr2[:22000 - 300, -1]
+y_test = arr2[22000 - 300:22000, -1]
 
 np.savetxt('x_train.csv', x_train, delimiter=',')
 np.savetxt('x_test.csv', x_test, delimiter=',')
 np.savetxt('y_train.csv', y_train, delimiter=',')
 np.savetxt('y_test.csv', y_test, delimiter=',')
 # =====================================================================================================
-x_train = np.loadtxt('x_train.csv', delimiter=',')
-x_test = np.loadtxt('x_test.csv', delimiter=',')
-y_train = np.loadtxt('y_train.csv', delimiter=',')
-y_test = np.loadtxt('y_test.csv', delimiter=',')
+# x_train = np.loadtxt('x_train.csv', delimiter=',')
+# x_test = np.loadtxt('x_test.csv', delimiter=',')
+# y_train = np.loadtxt('y_train.csv', delimiter=',')
+# y_test = np.loadtxt('y_test.csv', delimiter=',')
 # =====================================================================================================
 model1 = manual_model_dense(x_train)
 # model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-6),
+model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
                loss=tf.keras.losses.Huber(), metrics='mae')
 
 history = model1.fit(x_train, y_train,
                      validation_data=(x_test, y_test), callbacks=[
-        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights/model1/')], epochs=10000,
+        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights/model1/')],
+                     epochs=10000,
                      batch_size=50)
 model1.save('baggage_deployed_models/baggage_model1.h5')
 
@@ -134,7 +180,8 @@ plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 
 model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-model1.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model1/weights_epoch797.h5')
+model1.load_weights(
+    'C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model1/weights_epoch290.h5')
 
 y_pred_train1 = model1.predict(x_train)
 y_pred_test1 = model1.predict(x_test)
@@ -169,7 +216,8 @@ model3.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
 
 history = model3.fit(x_train3, y_train,
                      validation_data=(x_test3, y_test), callbacks=[
-        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights/model3/')], epochs=10000,
+        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights/model3/')],
+                     epochs=10000,
                      batch_size=100)
 model3.save('baggage_deployed_models/baggage_model3.h5')
 
@@ -182,7 +230,8 @@ plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 
 model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
-model3.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model3/weights_epoch712.h5')
+model3.load_weights(
+    'C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model3/weights_epoch2140.h5')
 # =====================================================================================================
 y_pred = model3.predict(x_test3).reshape(1, -1)
 y_actual = y_test.reshape(1, -1)

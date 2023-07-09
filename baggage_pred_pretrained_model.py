@@ -101,10 +101,10 @@ def baggage_pred_pretrained_model():
             df1 = copy.deepcopy(np.array(df0))
 
             model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-            model1.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model1/weights_epoch1288.h5')
+            model1.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model1/weights_epoch797.h5')
             model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
             model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
-            model3.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model3/weights_epoch2140.h5')
+            model3.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model3/weights_epoch712.h5')
 
 
             x_result = df1[-1].reshape(1, -1)
