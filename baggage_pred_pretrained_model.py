@@ -10,6 +10,8 @@ from functions import api_token_handler
 import joblib
 import schedule
 from joblib import load
+from sklearn.neighbors import KDTree
+from sklearn.preprocessing import StandardScaler
 
 
 def apply_label_dict(column):
@@ -57,6 +59,14 @@ def baggage_pred_pretrained_model():
     df_future['route'] = df_future['route'].apply(lambda x: x.replace("-", ">"))
     df_past['route'] = df_past['route'].apply(lambda x: x.replace("-", ">"))
 
+    model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
+    model1.load_weights(
+        'C:/Users\Administrator\Desktop\Projects\member_pred/test/baggage_similarity_training_weights\model1/weights_epoch208.h5')
+    model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
+    model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
+    model3.load_weights(
+        'C:/Users\Administrator\Desktop\Projects\member_pred/test/baggage_similarity_training_weights\model3/weights_epoch69.h5')
+
     for i in range(len(df_future)):
         try:
             pkFlightInformation = df_future.iloc[i:i + 1, :]['pkFlightInformation'].values[0]
@@ -96,18 +106,42 @@ def baggage_pred_pretrained_model():
                     [df0, df_temp0.groupby('route').shift(periods=kan1 + 1).add_suffix(f'_shifted{kan1 + 1}')],
                     axis=1)
 
-            df0.drop('baggage', inplace=True, axis=1)
+            col = df0.pop('baggage')
+            df0.insert(len(df0.columns), 'baggage', col)
+
+            df0_temp = df0.iloc[-1:,:]
             df0.dropna(inplace=True)
-            df1 = copy.deepcopy(np.array(df0))
+            df0 = pd.concat([df0,df0_temp],axis=0)
+            df1 = copy.deepcopy(df0)
+            df1.reset_index(drop=True, inplace=True)
 
-            model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-            model1.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model1/weights_epoch797.h5')
-            model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
-            model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
-            model3.load_weights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage_training_weights\model3/weights_epoch712.h5')
+            n = 3  # number of similar rows to find
+            similarity_columns = list(df1.columns)[:-1]
+            df1_np = df1[similarity_columns].to_numpy()
 
+            # Find the n most similar rows for each row
+            most_similar_rows = []
+            for i in range(n + 1, len(df1)):
+                # Build a KDTree with the rows before the current row
+                if i >= 100:
+                    tree = KDTree(df1_np[i - 100:i + 1])
+                else:
+                    tree = KDTree(df1_np[:i + 1])
 
-            x_result = df1[-1].reshape(1, -1)
+                # Find the n most similar rows
+                dist, ind = tree.query(df1_np[i:i + 1], k=n + 1)
+                most_similar_indices = ind[0][:n+1] + i - 100 if i >=100 else ind[0][:n+1]
+                most_similar_rows.append(df1.iloc[most_similar_indices].stack().to_frame().reset_index(drop=True).T)
+
+            # Create a new dataframe with the most similar rows as new columns
+            arr1 = np.stack([df.to_numpy() for df in most_similar_rows[:-1]], axis=0).squeeze()
+            arr2 = np.delete(arr1, 272, axis=1)
+            arr2 = np.concatenate((arr2,np.array(most_similar_rows[-1])))
+
+            ss = StandardScaler()
+            arr3 = ss.fit_transform(arr2)
+
+            x_result = arr3[-1].reshape(1, -1)
             y_pred1 = model1.predict(x_result)
             y_pred2 = model2.predict(x_result)
             x_result_final = np.concatenate((y_pred1.reshape(-1, 1), y_pred2.reshape(-1, 1)), axis=1)
