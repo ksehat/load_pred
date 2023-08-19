@@ -49,65 +49,65 @@ def custom_label_encode(column):
 
 
 # Load your data into a DataFrame
-# token = api_token_handler()
-# df0 = pd.DataFrame(
-#     json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
-#                             headers={'Authorization': f'Bearer {token}',
-#                                      'Content-type': 'application/json',
-#                                      }
-#                             ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
-#
-# df0.drop(['pkFlightInformation'], axis=1, inplace=True)
-#
-# df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
-# df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
-# df0['baggage'] = df0['baggage'].astype(float)
-#
-# df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
-# df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
-# df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
-# df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
-# df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
-# df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
-#
-# df0['departure'] = pd.to_datetime(df0['departure'])
-# df0.sort_values(by='departure', inplace=True)
-# df0.reset_index(drop=True, inplace=True)
-#
-# # Apply the function to the route column and assign it to a new column
-# df0['route'] = custom_label_encode(df0['route'])
-#
-# # create a function to get the last 5 values of the baggage column for the reverse route
-# last_5_values = df0.apply(lambda x: get_last_5(df0, -x['route'], x['departure']), axis=1)
-# for kan4 in range(5):
-#     df0[f'reverse_baggage_{kan4 + 1}'] = last_5_values.apply(lambda x: x[kan4] if len(x) > kan4 else None)
-#
-# df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
-#
-# col = df0.pop('baggage')
-# df0.insert(len(df0.columns), 'baggage', col)
-#
-# shift_num = 15
-# df_temp0 = copy.deepcopy(df0)
-# for i in range(shift_num):
-#     df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
-#
-# df0.dropna(inplace=True)
-#
-# col = df0.pop('baggage')
-# df0.insert(len(df0.columns), 'baggage', col)
-#
-# df2 = copy.deepcopy(np.array(df0))
-#
-# x_train = df2[:22035, :-1]
-# x_test = df2[22035:22070, :-1]
-# y_train = df2[:22035, -1]
-# y_test = df2[22035:22070, -1]
-#
-# np.savetxt('x_train.csv', x_train, delimiter=',')
-# np.savetxt('x_test.csv', x_test, delimiter=',')
-# np.savetxt('y_train.csv', y_train, delimiter=',')
-# np.savetxt('y_test.csv', y_test, delimiter=',')
+token = api_token_handler()
+df0 = pd.DataFrame(
+    json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
+                            headers={'Authorization': f'Bearer {token}',
+                                     'Content-type': 'application/json',
+                                     }
+                            ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
+
+df0.drop(['pkFlightInformation'], axis=1, inplace=True)
+
+df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
+df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
+df0['baggage'] = df0['baggage'].astype(float)
+
+df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
+df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
+df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
+df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
+df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
+df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
+
+df0['departure'] = pd.to_datetime(df0['departure'])
+df0.sort_values(by='departure', inplace=True)
+df0.reset_index(drop=True, inplace=True)
+
+# Apply the function to the route column and assign it to a new column
+df0['route'] = custom_label_encode(df0['route'])
+
+# create a function to get the last 5 values of the baggage column for the reverse route
+last_5_values = df0.apply(lambda x: get_last_5(df0, -x['route'], x['departure']), axis=1)
+for kan4 in range(5):
+    df0[f'reverse_baggage_{kan4 + 1}'] = last_5_values.apply(lambda x: x[kan4] if len(x) > kan4 else None)
+
+df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
+
+col = df0.pop('baggage')
+df0.insert(len(df0.columns), 'baggage', col)
+
+shift_num = 15
+df_temp0 = copy.deepcopy(df0)
+for i in range(shift_num):
+    df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
+
+df0.dropna(inplace=True)
+
+col = df0.pop('baggage')
+df0.insert(len(df0.columns), 'baggage', col)
+
+df2 = copy.deepcopy(np.array(df0))
+
+x_train = df2[:22035, :-1]
+x_test = df2[22035:22070, :-1]
+y_train = df2[:22035, -1]
+y_test = df2[22035:22070, -1]
+
+np.savetxt('x_train.csv', x_train, delimiter=',')
+np.savetxt('x_test.csv', x_test, delimiter=',')
+np.savetxt('y_train.csv', y_train, delimiter=',')
+np.savetxt('y_test.csv', y_test, delimiter=',')
 # =====================================================================================================
 x_train = np.loadtxt('x_train.csv', delimiter=',')
 x_test = np.loadtxt('x_test.csv', delimiter=',')
