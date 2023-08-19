@@ -15,7 +15,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 def apply_label_dict(column):
-    label_dict = load('baggage_deployed_models/label_dict.joblib')
+    label_dict = load('baggage/baggage_deployed_models/label_dict.joblib')
     encoded_column = []
     for route in column:
         origin, destination = route.split('>')
@@ -33,6 +33,31 @@ def apply_label_dict(column):
 def get_last_5(df, reverse_route, date):
     mask = (df['route'] == reverse_route) & (df['departure'] < date)
     return df.loc[mask, 'baggage'].tail(5).tolist()
+
+
+def push_to_db(y_pred_final, pkFlightInformation, flightdate, sales_weight, model):
+    try:
+        y_pred_final = y_pred_final[0][0]
+    except:
+        y_pred_final = y_pred_final[0]
+    print(y_pred_final)
+    print(
+        f"For flight with fkInfo: {int(pkFlightInformation)} at {str(flightdate).split('.')[0].replace('T', ' ')}.")
+    token = api_token_handler()
+    result_data = {
+        "fkFlightInformation": int(pkFlightInformation),
+        "load": float(y_pred_final),
+        "flightCount": 1,
+        "flightDate": str(flightdate).split('.')[0].replace('T', ' '),
+        "salesWeight": float(sales_weight),
+        "Model": model
+    }
+    api_result = requests.post(
+        url='http://192.168.115.10:8081/api/FlightBaggageEstimate/CreateFlightBaggageEstimate',
+        json=result_data,
+        headers={'Authorization': f'Bearer {token}',
+                 'Content-type': 'application/json',
+                 })
 
 
 def baggage_pred_pretrained_model():
@@ -59,13 +84,14 @@ def baggage_pred_pretrained_model():
     df_future['route'] = df_future['route'].apply(lambda x: x.replace("-", ">"))
     df_past['route'] = df_past['route'].apply(lambda x: x.replace("-", ">"))
 
-    model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
+    model1 = keras.models.load_model('baggage/baggage_deployed_models/baggage_model1.h5')
     model1.load_weights(
-        'C:/Users\Administrator\Desktop\Projects\member_pred/test/baggage_similarity_training_weights\model1/weights_epoch208.h5')
-    model2 = joblib.load('baggage_deployed_models/baggage_model2.sav')
-    model3 = keras.models.load_model('baggage_deployed_models/baggage_model3.h5')
+        'C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights\model1/weights_epoch41.h5')
+    model2 = joblib.load('baggage/baggage_deployed_models/baggage_model2.sav')
+    model3 = keras.models.load_model('baggage/baggage_deployed_models/baggage_model3.h5')
     model3.load_weights(
-        'C:/Users\Administrator\Desktop\Projects\member_pred/test/baggage_similarity_training_weights\model3/weights_epoch69.h5')
+        'C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights\model3/weights_epoch404.h5')
+    model_for_new_routes = joblib.load('baggage_new_routes/baggage_deployed_models/hgbr.pkl')
 
     for i in range(len(df_future)):
         try:
@@ -109,9 +135,18 @@ def baggage_pred_pretrained_model():
             col = df0.pop('baggage')
             df0.insert(len(df0.columns), 'baggage', col)
 
-            df0_temp = df0.iloc[-1:,:]
+            if any(df0.iloc[-1:, :-1]) == None:
+                y_pred_final = model_for_new_routes.predict(df0.iloc[-1, :-1])
+                try:
+                    push_to_db(y_pred_final, pkFlightInformation, flightdate, sales_weight, 'hgbr')
+                    continue
+                except:
+                    print(f'Error: y_pred:{y_pred_final} with {pkFlightInformation} did not recorded in DB.')
+                    continue
+
+            df0_temp = df0.iloc[-1:, :]
             df0.dropna(inplace=True)
-            df0 = pd.concat([df0,df0_temp],axis=0)
+            df0 = pd.concat([df0, df0_temp], axis=0)
             df1 = copy.deepcopy(df0)
             df1.reset_index(drop=True, inplace=True)
 
@@ -130,16 +165,16 @@ def baggage_pred_pretrained_model():
 
                 # Find the n most similar rows
                 dist, ind = tree.query(df1_np[i:i + 1], k=n + 1)
-                most_similar_indices = ind[0][:n+1] + i - 100 if i >=100 else ind[0][:n+1]
+                most_similar_indices = ind[0][:n + 1] + i - 100 if i >= 100 else ind[0][:n + 1]
                 most_similar_rows.append(df1.iloc[most_similar_indices].stack().to_frame().reset_index(drop=True).T)
 
             # Create a new dataframe with the most similar rows as new columns
             arr1 = np.stack([df.to_numpy() for df in most_similar_rows[:-1]], axis=0).squeeze()
             arr2 = np.delete(arr1, 272, axis=1)
-            arr2 = np.concatenate((arr2,np.array(most_similar_rows[-1])))
+            arr2 = np.concatenate((arr2, np.array(most_similar_rows[-1])))
 
-            ss = StandardScaler()
-            arr3 = ss.fit_transform(arr2)
+            ss = load(open('baggage/baggage_deployed_models/scaler.pkl', 'rb'))
+            arr3 = ss.transform(arr2)
 
             x_result = arr3[-1].reshape(1, -1)
             y_pred1 = model1.predict(x_result)
@@ -147,26 +182,24 @@ def baggage_pred_pretrained_model():
             x_result_final = np.concatenate((y_pred1.reshape(-1, 1), y_pred2.reshape(-1, 1)), axis=1)
             y_pred_final = model3.predict(x_result_final.reshape(1, -1))
 
-            if y_pred_final[0][0] >= 100:
-                print(y_pred_final[0][0])
-                token = api_token_handler()
-                result_data = {
-                    "fkFlightInformation": int(pkFlightInformation),
-                    "load": float(y_pred_final[0][0]),
-                    "flightCount": 1,
-                    "flightDate": str(flightdate).split('.')[0].replace('T', ' '),
-                    "salesWeight": float(sales_weight)
-                }
-                api_result = requests.post(
-                    url='http://192.168.115.10:8081/api/FlightBaggageEstimate/CreateFlightBaggageEstimate',
-                    json=result_data,
-                    headers={'Authorization': f'Bearer {token}',
-                             'Content-type': 'application/json',
-                             })
-                if not json.loads(api_result.text)['success']:
-                    print(f'y_pred:{y_pred_final} with {pkFlightInformation} did not recorded in DB.')
+            try:
+                push_to_db(y_pred_final, pkFlightInformation, flightdate, sales_weight, 'deep')
+                continue
+            except:
+                print(f'Error: y_pred:{y_pred_final} with {pkFlightInformation} did not recorded in DB.')
+                continue
+
         except:
-            print('An error occured.')
+            if df0.iloc[-1, :-1].any():
+                y_pred_final = model_for_new_routes.predict(df0.iloc[-1:, :-1])
+                try:
+                    push_to_db(y_pred_final, pkFlightInformation, flightdate, sales_weight, 'hgbr2')
+                    continue
+                except:
+                    print(f'Error: y_pred:{y_pred_final} with {pkFlightInformation} did not recorded in DB.')
+                    continue
+            print(
+                f"Non payload error for flight with fkInfo: {int(pkFlightInformation)} at {str(flightdate).split('.')[0].replace('T', ' ')}.")
             token = api_token_handler()
             result_data = {
                 "fkFlightInformation": int(pkFlightInformation),
@@ -180,5 +213,3 @@ def baggage_pred_pretrained_model():
                                    'Content-type': 'application/json',
                                    })
     print('Prediction job is done.')
-
-
