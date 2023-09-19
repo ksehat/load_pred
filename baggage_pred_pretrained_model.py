@@ -15,7 +15,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 def apply_label_dict(column):
-    label_dict = load('baggage/baggage_deployed_models/label_dict.joblib')
+    label_dict = load('artifacts/baggage/baggage_deployed_models/label_dict.joblib')
     encoded_column = []
     for route in column:
         origin, destination = route.split('>')
@@ -84,14 +84,14 @@ def baggage_pred_pretrained_model():
     df_future['route'] = df_future['route'].apply(lambda x: x.replace("-", ">"))
     df_past['route'] = df_past['route'].apply(lambda x: x.replace("-", ">"))
 
-    model1 = keras.models.load_model('baggage/baggage_deployed_models/baggage_model1.h5')
+    model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
     model1.load_weights(
-        'C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights\model1/weights_epoch41.h5')
-    model2 = joblib.load('baggage/baggage_deployed_models/baggage_model2.sav')
-    model3 = keras.models.load_model('baggage/baggage_deployed_models/baggage_model3.h5')
+        'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model1/weights_epoch11.h5')
+    model2 = joblib.load('artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
+    model3 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
     model3.load_weights(
-        'C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights\model3/weights_epoch404.h5')
-    model_for_new_routes = joblib.load('baggage_new_routes/baggage_deployed_models/hgbr.pkl')
+        'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model3/weights_epoch126.h5')
+    model_for_new_routes = joblib.load('artifacts/baggage/baggage_deployed_models/hgbr.pkl')
 
     for i in range(len(df_future)):
         try:
@@ -173,7 +173,7 @@ def baggage_pred_pretrained_model():
             arr2 = np.delete(arr1, 272, axis=1)
             arr2 = np.concatenate((arr2, np.array(most_similar_rows[-1])))
 
-            ss = load(open('baggage/baggage_deployed_models/scaler.pkl', 'rb'))
+            ss = load(open('artifacts/baggage/baggage_deployed_models/scaler.pkl', 'rb'))
             arr3 = ss.transform(arr2)
 
             x_result = arr3[-1].reshape(1, -1)

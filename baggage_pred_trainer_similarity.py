@@ -20,6 +20,7 @@ from save_training_weights import SaveWeights
 from sklearn.neighbors import KDTree
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
+from baggage_pred_pretrained_model import apply_label_dict
 
 
 # physical_devices = tf.config.list_physical_devices("GPU")
@@ -47,7 +48,7 @@ def custom_label_encode(column):
             encoded_column.append(label)
             label += 1
     # Save the label_dict to a file
-    dump(label_dict, 'baggage/baggage_deployed_models/label_dict.joblib')
+    dump(label_dict, 'artifacts/baggage/baggage_deployed_models/label_dict.joblib')
     return encoded_column
 
 
@@ -79,11 +80,10 @@ df0.reset_index(drop=True, inplace=True)
 
 # Apply the function to the route column and assign it to a new column
 df0['route'] = custom_label_encode(df0['route'])
-
 # create a function to get the last 5 values of the baggage column for the reverse route
 last_5_values = df0.apply(lambda x: get_last_5(df0, -x['route'], x['departure']), axis=1)
-for kan4 in range(5):
-    df0[f'reverse_baggage_{kan4 + 1}'] = last_5_values.apply(lambda x: x[kan4] if len(x) > kan4 else None)
+for k1 in range(5):
+    df0[f'reverse_baggage_{k1 + 1}'] = last_5_values.apply(lambda x: x[k1] if len(x) > k1 else None)
 
 df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
 
@@ -98,6 +98,7 @@ for i in range(shift_num):
 col = df0.pop('baggage')
 df0.insert(len(df0.columns), 'baggage', col)
 
+### IMPORTANT: DO NOT REMOVE THIS SECTION
 # region new routes prediction which has many None values
 mask = df0.iloc[5000:].isnull().any(axis=1)
 # Use boolean indexing to filter the rows
@@ -115,85 +116,71 @@ y_pred_new_routes = model_for_new_routes.predict(x_test_new_routes)
 
 from sklearn.metrics import mean_absolute_error as mae
 print(mae(y_test_new_routes,y_pred_new_routes))
-filename = 'baggage_new_routes/baggage_deployed_models/hgbr.pkl'
+filename = 'artifacts/baggage/baggage_deployed_models/hgbr.pkl'
 pickle.dump(model_for_new_routes, open(filename, 'wb'))
 # endregion
-
-df0.dropna(inplace=True)
-
-df1 = copy.deepcopy(df0)
-df1.reset_index(drop=True, inplace=True)
-n = 3  # number of similar rows to find
-similarity_columns = list(df1.columns)[:-1]
-df1_np = df1[similarity_columns].to_numpy()
-
+#
+# df0.dropna(inplace=True)
+#
+# df1 = copy.deepcopy(df0)
+# df1.reset_index(drop=True, inplace=True)
+# n = 3  # number of similar rows to find
+# similarity_columns = list(df1.columns)[:-1]
+# df1_np = df1[similarity_columns].to_numpy()
+#
 # # Find the n most similar rows for each row
 # most_similar_rows = []
 # for i in range(n + 1, len(df1)):
-#     # Calculate the cosine similarity matrix for rows before the current row
+#     # Build a KDTree with the rows before the current row
 #     if i >= 100:
-#         similarity_matrix = cosine_similarity(df1[similarity_columns].iloc[i - 100:i + 1])
+#         tree = KDTree(df1_np[i - 100:i + 1])
 #     else:
-#         similarity_matrix = cosine_similarity(df1[similarity_columns].iloc[:i + 1])
+#         tree = KDTree(df1_np[:i + 1])
 #
 #     # Find the n most similar rows
-#     row_similarity = similarity_matrix[-1]
-#     most_similar_indices = row_similarity.argsort()[-n:][::-1]
-#     most_similar_rows.append(df1.iloc[most_similar_indices,-1:].stack().to_frame().reset_index(drop=True).T)
-
-# Find the n most similar rows for each row
-most_similar_rows = []
-for i in range(n + 1, len(df1)):
-    # Build a KDTree with the rows before the current row
-    if i >= 100:
-        tree = KDTree(df1_np[i - 100:i + 1])
-    else:
-        tree = KDTree(df1_np[:i + 1])
-
-    # Find the n most similar rows
-    dist, ind = tree.query(df1_np[i:i + 1], k=n + 1)
-    most_similar_indices = ind[0][:n+1] + i - 100 if i >=100 else ind[0][:n+1]
-    most_similar_rows.append(df1.iloc[most_similar_indices].stack().to_frame().reset_index(drop=True).T)
-
-# Create a new dataframe with the most similar rows as new columns
-arr1 = np.concatenate((np.array(most_similar_rows).squeeze(), df1.to_numpy()[n + 1:, -1].reshape(-1, 1)),
-    axis=1)
-arr3 = np.delete(arr1, 272, axis=1)
-
-ss = StandardScaler()
-arr1 = ss.fit_transform(arr3[:, :-1])
-
-filename = 'baggage/baggage_deployed_models/scaler.pkl'
-pickle.dump(ss, open(filename, 'wb'))
-
-arr2 = np.concatenate((arr1, arr3[:, -1].reshape(-1, 1)), axis=1)
-
-x_train = arr2[:-60, :-1]
-x_test = arr2[-60:, :-1]
-y_train = arr2[:-60, -1]
-y_test = arr2[-60:, -1]
+#     dist, ind = tree.query(df1_np[i:i + 1], k=n + 1)
+#     most_similar_indices = ind[0][:n+1] + i - 100 if i >=100 else ind[0][:n+1]
+#     most_similar_rows.append(df1.iloc[most_similar_indices].stack().to_frame().reset_index(drop=True).T)
 #
-np.savetxt('x_train_similarity.csv', x_train, delimiter=',')
-np.savetxt('x_test_similarity.csv', x_test, delimiter=',')
-np.savetxt('y_train_similarity.csv', y_train, delimiter=',')
-np.savetxt('y_test_similarity.csv', y_test, delimiter=',')
+# # Create a new dataframe with the most similar rows as new columns
+# arr1 = np.concatenate((np.array(most_similar_rows).squeeze(), df1.to_numpy()[n + 1:, -1].reshape(-1, 1)),
+#     axis=1)
+# arr3 = np.delete(arr1, 272, axis=1)
+#
+# ss = StandardScaler()
+# arr1 = ss.fit_transform(arr3[:, :-1])
+#
+# filename = 'artifacts/baggage/baggage_deployed_models/scaler.pkl'
+# pickle.dump(ss, open(filename, 'wb'))
+#
+# arr2 = np.concatenate((arr1, arr3[:, -1].reshape(-1, 1)), axis=1)
+#
+# x_train = arr2[:-60, :-1]
+# x_test = arr2[-60:, :-1]
+# y_train = arr2[:-60, -1]
+# y_test = arr2[-60:, -1]
+# #
+# np.savetxt('artifacts/baggage/data/x_train_similarity.csv', x_train, delimiter=',')
+# np.savetxt('artifacts/baggage/data/x_test_similarity.csv', x_test, delimiter=',')
+# np.savetxt('artifacts/baggage/data/y_train_similarity.csv', y_train, delimiter=',')
+# np.savetxt('artifacts/baggage/data/y_test_similarity.csv', y_test, delimiter=',')
 # =====================================================================================================
-x_train = np.loadtxt('x_train_similarity.csv', delimiter=',')
-x_test = np.loadtxt('x_test_similarity.csv', delimiter=',')
-y_train = np.loadtxt('y_train_similarity.csv', delimiter=',')
-y_test = np.loadtxt('y_test_similarity.csv', delimiter=',')
+x_train = np.loadtxt('artifacts/baggage/data/x_train_similarity.csv', delimiter=',')
+x_test = np.loadtxt('artifacts/baggage/data/x_test_similarity.csv', delimiter=',')
+y_train = np.loadtxt('artifacts/baggage/data/y_train_similarity.csv', delimiter=',')
+y_test = np.loadtxt('artifacts/baggage/data/y_test_similarity.csv', delimiter=',')
 # =====================================================================================================
 # model1 = manual_model_dense(x_train)
-# # model1 = keras.models.load_model('baggage_deployed_models/baggage_model1.h5')
-# model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=4e-5),
+# # model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
+# model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
 #                loss=tf.keras.losses.Huber(), metrics='mae')
 #
 # history = model1.fit(x_train, y_train,
 #                      validation_data=(x_test, y_test), callbacks=[
-#         SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights/model1/')],
+#         SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model1/')],
 #                      epochs=10000,
 #                      batch_size=50)
-# model1.save('baggage/baggage_deployed_models/baggage_model1.h5')
+# model1.save('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
 #
 # plt.plot(history.history['loss'])
 # plt.plot(history.history['val_loss'])
@@ -203,9 +190,9 @@ y_test = np.loadtxt('y_test_similarity.csv', delimiter=',')
 # plt.legend(['Train', 'Test'], loc='upper left')
 # plt.show()
 
-model1 = keras.models.load_model('baggage/baggage_deployed_models/baggage_model1.h5')
+model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
 model1.load_weights(
-    'C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights/model1/weights_epoch41.h5')
+    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model1/weights_epoch11.h5')
 
 y_pred_train1 = model1.predict(x_train)
 y_pred_test1 = model1.predict(x_test)
@@ -215,10 +202,10 @@ y_train2 = y_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 400)]
 model2 = GradientBoostingRegressor(max_depth=5)
 model2.fit(x_train2, y_train2)
 
-filename = 'baggage/baggage_deployed_models/baggage_model2.sav'
+filename = 'artifacts/baggage/baggage_deployed_models/baggage_model2.sav'
 pickle.dump(model2, open(filename, 'wb'))
 
-model2 = joblib.load('baggage/baggage_deployed_models/baggage_model2.sav')
+model2 = joblib.load('artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
 
 y_pred_train2 = model2.predict(x_train)
 y_pred_test2 = model2.predict(x_test)
@@ -241,10 +228,10 @@ model3.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
 
 history = model3.fit(x_train3, y_train,
                      validation_data=(x_test3, y_test), callbacks=[
-        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights/model3/')],
+        SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model3/')],
                      epochs=10000,
                      batch_size=100)
-model3.save('baggage/baggage_deployed_models/baggage_model3.h5')
+model3.save('artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
 
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -254,9 +241,9 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 plt.show()
 
-model3 = keras.models.load_model('baggage/baggage_deployed_models/baggage_model3.h5')
+model3 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
 model3.load_weights(
-    'C:/Users\Administrator\Desktop\Projects\member_pred/baggage/baggage_similarity_training_weights\model3/weights_epoch404.h5')
+    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model3/weights_epoch126.h5')
 # =====================================================================================================
 y_pred = model3.predict(x_test3).reshape(1, -1)
 y_actual = y_test.reshape(1, -1)
