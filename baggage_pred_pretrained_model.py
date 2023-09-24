@@ -86,11 +86,11 @@ def baggage_pred_pretrained_model():
 
     model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
     model1.load_weights(
-        'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model1/weights_epoch11.h5')
+        'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model1/weights_epoch66.h5')
     model2 = joblib.load('artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
     model3 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
     model3.load_weights(
-        'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model3/weights_epoch126.h5')
+        'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model3/weights_epoch78.h5')
     model_for_new_routes = joblib.load('artifacts/baggage/baggage_deployed_models/hgbr.pkl')
 
     for i in range(len(df_future)):

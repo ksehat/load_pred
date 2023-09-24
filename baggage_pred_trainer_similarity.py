@@ -53,72 +53,72 @@ def custom_label_encode(column):
 
 
 # Load your data into a DataFrame
-token = api_token_handler()
-df0 = pd.DataFrame(
-    json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
-                            headers={'Authorization': f'Bearer {token}',
-                                     'Content-type': 'application/json',
-                                     }
-                            ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
-
-df0.drop(['pkFlightInformation'], axis=1, inplace=True)
-
-df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
-df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
-df0['baggage'] = df0['baggage'].astype(float)
-
-df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
-df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
-df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
-df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
-df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
-df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
-
-df0['departure'] = pd.to_datetime(df0['departure'])
-df0.sort_values(by='departure', inplace=True)
-df0.reset_index(drop=True, inplace=True)
-
-# Apply the function to the route column and assign it to a new column
-df0['route'] = custom_label_encode(df0['route'])
-# create a function to get the last 5 values of the baggage column for the reverse route
-last_5_values = df0.apply(lambda x: get_last_5(df0, -x['route'], x['departure']), axis=1)
-for k1 in range(5):
-    df0[f'reverse_baggage_{k1 + 1}'] = last_5_values.apply(lambda x: x[k1] if len(x) > k1 else None)
-
-df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
-
-col = df0.pop('baggage')
-df0.insert(len(df0.columns), 'baggage', col)
-
-shift_num = 15
-df_temp0 = copy.deepcopy(df0)
-for i in range(shift_num):
-    df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
-
-col = df0.pop('baggage')
-df0.insert(len(df0.columns), 'baggage', col)
-
-### IMPORTANT: DO NOT REMOVE THIS SECTION
-# region new routes prediction which has many None values
-mask = df0.iloc[5000:].isnull().any(axis=1)
-# Use boolean indexing to filter the rows
-df0_for_new_routes = df0.iloc[5000:][mask]
-
-from sklearn.ensemble import HistGradientBoostingRegressor as hgbr
-model_for_new_routes = hgbr(max_depth=6, random_state=40)
-x_train_new_routes = df0_for_new_routes.iloc[:-100,:-1]
-x_test_new_routes = df0_for_new_routes.iloc[-100:,:-1]
-y_train_new_routes = df0_for_new_routes.iloc[:-100,-1:]
-y_test_new_routes = df0_for_new_routes.iloc[-100:,-1:]
-
-model_for_new_routes.fit(x_train_new_routes, y_train_new_routes)
-y_pred_new_routes = model_for_new_routes.predict(x_test_new_routes)
-
-from sklearn.metrics import mean_absolute_error as mae
-print(mae(y_test_new_routes,y_pred_new_routes))
-filename = 'artifacts/baggage/baggage_deployed_models/hgbr.pkl'
-pickle.dump(model_for_new_routes, open(filename, 'wb'))
-# endregion
+# token = api_token_handler()
+# df0 = pd.DataFrame(
+#     json.loads(requests.get(url='http://192.168.115.10:8081/api/FlightBaggageEstimate/GetAllPastFlightsBaggage',
+#                             headers={'Authorization': f'Bearer {token}',
+#                                      'Content-type': 'application/json',
+#                                      }
+#                             ).text)['getAllPastFlightsBaggageResponseItemViewModels']).sort_values(by='departure')
+#
+# df0.drop(['pkFlightInformation'], axis=1, inplace=True)
+#
+# df0['baggage'] = df0['baggage'].str.split('/', expand=True)[1]
+# df0['baggage'] = df0['baggage'].str.split(' ', expand=True)[0]
+# df0['baggage'] = df0['baggage'].astype(float)
+#
+# df0['year'] = np.array(pd.DatetimeIndex(df0['departure']).year)
+# df0['month'] = np.array(pd.DatetimeIndex(df0['departure']).month)
+# df0['day'] = np.array(pd.DatetimeIndex(df0['departure']).day)
+# df0['dayofweek'] = np.array(pd.DatetimeIndex(df0['departure']).dayofweek)
+# df0['hour'] = np.array(pd.DatetimeIndex(df0['departure']).hour)
+# df0['quarter'] = np.array(pd.DatetimeIndex(df0['departure']).quarter)
+#
+# df0['departure'] = pd.to_datetime(df0['departure'])
+# df0.sort_values(by='departure', inplace=True)
+# df0.reset_index(drop=True, inplace=True)
+#
+# # Apply the function to the route column and assign it to a new column
+# df0['route'] = custom_label_encode(df0['route'])
+# # create a function to get the last 5 values of the baggage column for the reverse route
+# last_5_values = df0.apply(lambda x: get_last_5(df0, -x['route'], x['departure']), axis=1)
+# for k1 in range(5):
+#     df0[f'reverse_baggage_{k1 + 1}'] = last_5_values.apply(lambda x: x[k1] if len(x) > k1 else None)
+#
+# df0.drop(['departure', 'paxWeight'], inplace=True, axis=1)
+#
+# col = df0.pop('baggage')
+# df0.insert(len(df0.columns), 'baggage', col)
+#
+# shift_num = 15
+# df_temp0 = copy.deepcopy(df0)
+# for i in range(shift_num):
+#     df0 = pd.concat([df0, df_temp0.groupby('route').shift(periods=i + 1).add_suffix(f'_shifted{i + 1}')], axis=1)
+#
+# col = df0.pop('baggage')
+# df0.insert(len(df0.columns), 'baggage', col)
+#
+# ### IMPORTANT: DO NOT REMOVE THIS SECTION
+# # region new routes prediction which has many None values
+# mask = df0.iloc[5000:].isnull().any(axis=1)
+# # Use boolean indexing to filter the rows
+# df0_for_new_routes = df0.iloc[5000:][mask]
+#
+# from sklearn.ensemble import HistGradientBoostingRegressor as hgbr
+# model_for_new_routes = hgbr(max_depth=6, random_state=40)
+# x_train_new_routes = df0_for_new_routes.iloc[:-1,:-1]
+# x_test_new_routes = df0_for_new_routes.iloc[-1:,:-1]
+# y_train_new_routes = df0_for_new_routes.iloc[:-1,-1:]
+# y_test_new_routes = df0_for_new_routes.iloc[-1:,-1:]
+#
+# model_for_new_routes.fit(x_train_new_routes, y_train_new_routes)
+# y_pred_new_routes = model_for_new_routes.predict(x_test_new_routes)
+#
+# from sklearn.metrics import mean_absolute_error as mae
+# print(mae(y_test_new_routes,y_pred_new_routes))
+# filename = 'artifacts/baggage/baggage_deployed_models/hgbr.pkl'
+# pickle.dump(model_for_new_routes, open(filename, 'wb'))
+# # endregion
 #
 # df0.dropna(inplace=True)
 #
@@ -155,10 +155,10 @@ pickle.dump(model_for_new_routes, open(filename, 'wb'))
 #
 # arr2 = np.concatenate((arr1, arr3[:, -1].reshape(-1, 1)), axis=1)
 #
-# x_train = arr2[:-60, :-1]
-# x_test = arr2[-60:, :-1]
-# y_train = arr2[:-60, -1]
-# y_test = arr2[-60:, -1]
+# x_train = arr2[:-10, :-1]
+# x_test = arr2[-10:, :-1]
+# y_train = arr2[:-10, -1]
+# y_test = arr2[-10:, -1]
 # #
 # np.savetxt('artifacts/baggage/data/x_train_similarity.csv', x_train, delimiter=',')
 # np.savetxt('artifacts/baggage/data/x_test_similarity.csv', x_test, delimiter=',')
@@ -172,7 +172,7 @@ y_test = np.loadtxt('artifacts/baggage/data/y_test_similarity.csv', delimiter=',
 # =====================================================================================================
 # model1 = manual_model_dense(x_train)
 # # model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
-# model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5),
+# model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
 #                loss=tf.keras.losses.Huber(), metrics='mae')
 #
 # history = model1.fit(x_train, y_train,
@@ -192,12 +192,12 @@ y_test = np.loadtxt('artifacts/baggage/data/y_test_similarity.csv', delimiter=',
 
 model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
 model1.load_weights(
-    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model1/weights_epoch11.h5')
+    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model1/weights_epoch66.h5')
 
 y_pred_train1 = model1.predict(x_train)
 y_pred_test1 = model1.predict(x_test)
-x_train2 = x_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 400)]
-y_train2 = y_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 400)]
+x_train2 = x_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 700)]
+y_train2 = y_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 700)]
 # =====================================================================================================
 model2 = GradientBoostingRegressor(max_depth=5)
 model2.fit(x_train2, y_train2)
@@ -205,7 +205,7 @@ model2.fit(x_train2, y_train2)
 filename = 'artifacts/baggage/baggage_deployed_models/baggage_model2.sav'
 pickle.dump(model2, open(filename, 'wb'))
 
-model2 = joblib.load('artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
+# model2 = joblib.load('artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
 
 y_pred_train2 = model2.predict(x_train)
 y_pred_test2 = model2.predict(x_test)
@@ -215,8 +215,8 @@ x_test3 = np.concatenate((y_pred_test1.reshape(-1, 1), y_pred_test2.reshape(-1, 
 input_shape = x_train3.shape[1]
 input_layer = keras.Input(shape=input_shape)
 x = input_layer
-x1 = layers.Dense(50, activation="relu")(x)
-x2 = layers.Dense(20, activation="relu")(x1)
+x1 = layers.Dense(20, activation="relu")(x)
+x2 = layers.Dense(10, activation="relu")(x1)
 x3 = layers.Dense(5, activation="relu")(x2)
 # x4 = layers.Dense(5, activation="relu")(x3)
 # x5 = layers.Dense(5, activation="relu")(x4)
@@ -230,7 +230,7 @@ history = model3.fit(x_train3, y_train,
                      validation_data=(x_test3, y_test), callbacks=[
         SaveWeights('C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model3/')],
                      epochs=10000,
-                     batch_size=100)
+                     batch_size=50)
 model3.save('artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
 
 plt.plot(history.history['loss'])
