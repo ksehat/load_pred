@@ -18,7 +18,7 @@ from functions import api_token_handler
 from early_stopping_multiple import EarlyStoppingMultiple
 from save_training_weights import SaveWeights
 from sklearn.neighbors import KDTree
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, Normalizer
 from sklearn.metrics.pairwise import cosine_similarity
 from baggage_pred_pretrained_model import apply_label_dict
 
@@ -147,7 +147,7 @@ def custom_label_encode(column):
 #     axis=1)
 # arr3 = np.delete(arr1, 272, axis=1)
 #
-# ss = StandardScaler()
+# ss = Normalizer()
 # arr1 = ss.fit_transform(arr3[:, :-1])
 #
 # filename = 'artifacts/baggage/baggage_deployed_models/scaler.pkl'
@@ -155,10 +155,10 @@ def custom_label_encode(column):
 #
 # arr2 = np.concatenate((arr1, arr3[:, -1].reshape(-1, 1)), axis=1)
 #
-# x_train = arr2[:-10, :-1]
-# x_test = arr2[-10:, :-1]
-# y_train = arr2[:-10, -1]
-# y_test = arr2[-10:, -1]
+# x_train = arr2[:23000, :-1]
+# x_test = arr2[23000:23700, :-1]
+# y_train = arr2[:23000, -1]
+# y_test = arr2[23000:23700, -1]
 # #
 # np.savetxt('artifacts/baggage/data/x_train_similarity.csv', x_train, delimiter=',')
 # np.savetxt('artifacts/baggage/data/x_test_similarity.csv', x_test, delimiter=',')
@@ -171,7 +171,6 @@ y_train = np.loadtxt('artifacts/baggage/data/y_train_similarity.csv', delimiter=
 y_test = np.loadtxt('artifacts/baggage/data/y_test_similarity.csv', delimiter=',')
 # =====================================================================================================
 # model1 = manual_model_dense(x_train)
-# # model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
 # model1.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
 #                loss=tf.keras.losses.Huber(), metrics='mae')
 #
@@ -192,20 +191,20 @@ y_test = np.loadtxt('artifacts/baggage/data/y_test_similarity.csv', delimiter=',
 
 model1 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
 model1.load_weights(
-    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model1/weights_epoch66.h5')
+    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights/model1/weights_epoch312.h5')
 
 y_pred_train1 = model1.predict(x_train)
 y_pred_test1 = model1.predict(x_test)
 x_train2 = x_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 700)]
 y_train2 = y_train[(abs(y_pred_train1.reshape(-1) - y_train) >= 700)]
 # =====================================================================================================
-model2 = GradientBoostingRegressor(max_depth=5)
-model2.fit(x_train2, y_train2)
+# model2 = GradientBoostingRegressor(max_depth=5)
+# model2.fit(x_train2, y_train2)
+#
+# filename = 'artifacts/baggage/baggage_deployed_models/baggage_model2.sav'
+# pickle.dump(model2, open(filename, 'wb'))
 
-filename = 'artifacts/baggage/baggage_deployed_models/baggage_model2.sav'
-pickle.dump(model2, open(filename, 'wb'))
-
-# model2 = joblib.load('artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
+model2 = joblib.load('artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
 
 y_pred_train2 = model2.predict(x_train)
 y_pred_test2 = model2.predict(x_test)
@@ -243,7 +242,7 @@ plt.show()
 
 model3 = keras.models.load_model('artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
 model3.load_weights(
-    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model3/weights_epoch126.h5')
+    'C:/Users\Administrator\Desktop\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model3/weights_epoch762.h5')
 # =====================================================================================================
 y_pred = model3.predict(x_test3).reshape(1, -1)
 y_actual = y_test.reshape(1, -1)
