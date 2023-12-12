@@ -100,11 +100,11 @@ def pax_pred_pretrained_model(who_is_calling=None):
 
             model1 = keras.models.load_model('pax_deployed_models/pax_model1.h5')
             model1.load_weights(
-                'C:/Users\Administrator\Desktop\Projects\member_pred/pax_training_weights\model1/weights_epoch513.h5')
+                'E:\Projects\member_pred/pax_training_weights\model1/weights_epoch513.h5')
             model2 = joblib.load('pax_deployed_models/pax_model2.sav')
             model3 = keras.models.load_model('pax_deployed_models/pax_model3.h5')
             model3.load_weights(
-                'C:/Users\Administrator\Desktop\Projects\member_pred/pax_training_weights\model3/weights_epoch733.h5')
+                'E:\Projects\member_pred/pax_training_weights\model3/weights_epoch733.h5')
 
             if who_is_calling == 'pax_train':
                 x_result_past = df1[:-1]
