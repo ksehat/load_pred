@@ -173,9 +173,9 @@ def manual_model_dense(input_data):
     input_layer = keras.Input(shape=input_shape)
 
     x = input_layer
-    x1 = layers.Dense(100, activation="relu")(x)
+    x1 = layers.Dense(50, activation="relu")(x)
     # x1 = layers.Dropout(0.1)(x1)
-    x2 = layers.Dense(40, activation="relu")(x1)
+    x2 = layers.Dense(30, activation="relu")(x1)
     x3 = layers.Dense(20, activation="relu")(x2)
     # x4 = layers.Dense(25, activation="relu")(x3)
     # x5 = layers.Dense(5, activation="relu")(x4)
