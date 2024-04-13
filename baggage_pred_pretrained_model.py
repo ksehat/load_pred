@@ -1,17 +1,13 @@
-import time
 import pandas as pd
 import requests
 import json
 import copy
-import pickle
 import numpy as np
 import keras
 from functions import api_token_handler
 import joblib
-import schedule
 from joblib import load
 from sklearn.neighbors import KDTree
-from sklearn.preprocessing import StandardScaler
 
 
 def apply_label_dict(column):
@@ -84,11 +80,11 @@ def baggage_pred_pretrained_model():
     df_future['route'] = df_future['route'].apply(lambda x: x.replace("-", ">"))
     df_past['route'] = df_past['route'].apply(lambda x: x.replace("-", ">"))
 
-    model1 = keras.models.load_model('E:\Projects\member_pred/artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
+    model1 = keras.models.load_model('E:/Projects/member_pred/artifacts/baggage/baggage_deployed_models/baggage_model1.h5')
     model1.load_weights(
         'E:\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model1/weights_epoch312.h5')
     model2 = joblib.load('E:\Projects\member_pred/artifacts/baggage/baggage_deployed_models/baggage_model2.sav')
-    model3 = keras.models.load_model('E:\Projects\member_pred/artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
+    model3 = tf.keras.models.load_model('E:\Projects\member_pred/artifacts/baggage/baggage_deployed_models/baggage_model3.h5')
     model3.load_weights(
         'E:\Projects\member_pred/artifacts/baggage/baggage_similarity_training_weights\model3/weights_epoch762.h5')
     model_for_new_routes = joblib.load('E:\Projects\member_pred/artifacts/baggage/baggage_deployed_models/hgbr.pkl')
